@@ -979,6 +979,11 @@ class Layout
   section_list() const
   { return this->section_list_; }
 
+  // Return segment list.
+  const Segment_list&
+  segment_list() const
+  { return this->segment_list_; }
+
   // Returns TRUE iff NAME (an input section from RELOBJ) will
   // be mapped to an output section that should be KEPT.
   bool

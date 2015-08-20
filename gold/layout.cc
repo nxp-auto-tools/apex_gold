@@ -658,8 +658,12 @@ Layout::include_section(Sized_relobj_file<size, big_endian>*, const char* name,
 
   elfcpp::Elf_Word sh_type = shdr.get_sh_type();
 
+  // ugly: include strtab for memstrtab segment
+  bool is_apex = parameters->target().machine_code() == elfcpp::EM_NONE;
+
   if ((sh_type >= elfcpp::SHT_LOOS && sh_type <= elfcpp::SHT_HIOS)
-      || (sh_type >= elfcpp::SHT_LOPROC && sh_type <= elfcpp::SHT_HIPROC))
+      || (sh_type >= elfcpp::SHT_LOPROC && sh_type <= elfcpp::SHT_HIPROC)
+      || (is_apex && sh_type == elfcpp::SHT_STRTAB && strcmp(name, ".strtab") == 0))
     return parameters->target().should_include_section(sh_type);
 
   switch (sh_type)
