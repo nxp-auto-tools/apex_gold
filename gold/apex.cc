@@ -24,9 +24,7 @@
 #include "target-reloc.h"
 #include "target-select.h"
 #include "errors.h"
-//#include "tls.h"
 #include "gc.h"
-//#include "icf.h"
 
 namespace
 {
@@ -82,15 +80,15 @@ public:
   // Relocate a section.
   void
   relocate_section(const Relocate_info<size, big_endian>*,
-		   unsigned int sh_type,
-		   const unsigned char* prelocs,
-		   size_t reloc_count,
-		   Output_section* output_section,
-		   bool needs_special_offset_handling,
-		   unsigned char* view,
-		   Address view_address,
-		   section_size_type view_size,
-		   const Reloc_symbol_changes*);
+                   unsigned int sh_type,
+                   const unsigned char* prelocs,
+                   size_t reloc_count,
+                   Output_section* output_section,
+                   bool needs_special_offset_handling,
+                   unsigned char* view,
+                   Address view_address,
+                   section_size_type view_size,
+                   const Reloc_symbol_changes*);
 
   // Scan the relocs during a relocatable link.
   void
@@ -131,8 +129,6 @@ public:
   do_should_include_section(elfcpp::Elf_Word sh_type) const
   // skip tctmemtab as we will create base on output segments.
   {
-    if (sh_type == elfcpp::SHT_STRTAB)
-      return true;
     if (sh_type != elfcpp::SHT_LOPROC + 0x123456)
       return true;
     return false;
@@ -346,13 +342,13 @@ private:
   {
     if (overflow == CHECK_SIGNED)
       {
-	if (has_overflow_signed<valsize>(value))
-	  return STATUS_OVERFLOW;
+        if (has_overflow_signed<valsize>(value))
+          return STATUS_OVERFLOW;
       }
     else if (overflow == CHECK_UNSIGNED)
       {
-	if (has_overflow_unsigned<valsize>(value))
-	  return STATUS_OVERFLOW;
+        if (has_overflow_unsigned<valsize>(value))
+          return STATUS_OVERFLOW;
       }
     return STATUS_OK;
   }
@@ -427,7 +423,7 @@ public:
        typename elfcpp::Swap<size, big_endian>::Valtype addend)
   { This::template rela<64,32>(view, object, psymval, addend); }
 
-   // R_APEX_327 : (Symbol + Addend) s32 data relocation in little endian
+   // R_APEX_237 : (Symbol + Addend) s32 data relocation in little endian
   static inline void
   d_addr32(unsigned char* view,
        const Sized_relobj_file<size, big_endian>* object,
@@ -446,7 +442,7 @@ public:
 
 };
 
-// Apex_output_section_tctmemtab do_write methods.
+// Apex_output_section_tctmemtab do_write method
 
 template<int size, bool big_endian>
 void
@@ -565,7 +561,7 @@ Target_apex<size, big_endian>::relocate_section(
   gold_assert(sh_type == elfcpp::SHT_RELA);
 
   gold::relocate_section<size, big_endian, Apex, elfcpp::SHT_RELA,
-			 Apex_relocate, gold::Default_comdat_behavior>(
+                         Apex_relocate, gold::Default_comdat_behavior>(
     relinfo,
     this,
     prelocs,
@@ -659,51 +655,56 @@ Target_apex<size, big_endian>::do_finalize_sections(
     const Input_objects*,
     Symbol_table* symtab)
 {
-  Output_section* strtab = layout->find_output_section(".strtab");
-  //strtab->update_flags_for_input_section(elfcpp::SHF_ALLOC);
+  // create .memstrtab output section and segment
+  Stringpool *memstrtab = new Stringpool();
+  memstrtab->add("PMh", false, NULL);
+  memstrtab->add("DMb", false, NULL);
+  memstrtab->add("VMb", false, NULL);
+  memstrtab->set_string_offsets();
 
-  Stringpool* strpool = (Stringpool*)layout->sympool();
-  strpool->add("PMh", false, NULL);
-  strpool->add("DMb", false, NULL);
-  strpool->add("VMb", false, NULL);
-
-  #if 0
-  // FIXME: str offset is not available until after section is finalized.
-  section_offset_type pmh_str_offset = strpool->get_offset("PMh");
-  section_offset_type dmb_str_offset = strpool->get_offset("DMb");
-  section_offset_type vmb_str_offset = strpool->get_offset("VMb");
-  #endif
-
-  // Create MEMSTRTAB segment
+  Output_data_strtab* memstrtab_data = new Output_data_strtab(memstrtab);
+  Output_section* memstrtab_os = 
+    layout->add_output_section_data(".memstrtab",
+                                    elfcpp::SHT_STRTAB, elfcpp::SHF_ALLOC,
+                                    memstrtab_data, ORDER_INVALID,
+                                    false);
+  
   Output_segment* memstrtab_seg = 
     layout->make_output_segment(elfcpp::PT_LOPROC+0x123457, 0);
-  memstrtab_seg->add_output_section_to_nonload(strtab, elfcpp::PF_R);
+  memstrtab_seg->add_output_section_to_nonload(memstrtab_os, elfcpp::PF_R);
+
   
-  #if 0 //FIXME
-  // Create TCTMEMTAB segment
+  // Create .tctmemtab section and  segment
   Output_segment* tctmemtab_seg = 
     layout->make_output_segment(elfcpp::PT_LOPROC+0x123456, 0);
-  Output_section* s = layout->find_output_section(".tctmemtab");
-  Apex_output_section_tctmemtab<size, big_endian>* tctmemtab_sec =
-    Apex_output_section_tctmemtab<size, big_endian>::
-    as_apex_output_section_tctmemtab(s);
-  
+
+  Output_data_space* tctmemtab_data = new Output_data_space(4 /*align*/, "** TCTMEMTAB");
+  Apex_output_section_tctmemtab<size, big_endian>* tctmemtab_os = 
+    Apex_output_section_tctmemtab<size, big_endian>::as_apex_output_section_tctmemtab(
+       layout->add_output_section_data(".tctmemtab",
+                                       elfcpp::SHT_LOPROC+0x123456, elfcpp::SHF_ALLOC,
+                                       tctmemtab_data, ORDER_INVALID,
+                                       false));
+  tctmemtab_os->set_entsize(8);
+  // link to .memstrtab
+  tctmemtab_os->set_link_section(memstrtab_os);
+
   unsigned p_idx = 0;
   for (Layout::Segment_list::const_iterator p = layout->segment_list().begin();
-	 p != layout->segment_list().end(); ++p,++p_idx)
+         p != layout->segment_list().end(); ++p,++p_idx)
     {
       elfcpp::Elf_Word p_flag = (*p)->flags(); 
-      elfcpp::Elf_Word p_type = (*p)->type(); 
+      elfcpp::Elf_Word p_type = (*p)->type();
+      // use fixed str offset in memstrtab
       if ((p_type & elfcpp::PT_LOAD) && 
-	  (p_flag & elfcpp::PF_X) && (p_flag & elfcpp::PF_R))
-	tctmemtab_sec->add_seg_str(p_idx, pmh_str_offset);
+          (p_flag & elfcpp::PF_X) && (p_flag & elfcpp::PF_R))
+        tctmemtab_os->add_seg_str(p_idx, 1);
       else if ((p_type & elfcpp::PT_LOAD) && 
-	  (p_flag & elfcpp::PF_W) && (p_flag & elfcpp::PF_R))
-	tctmemtab_sec->add_seg_str(p_idx, dmb_str_offset);
+               (p_flag & elfcpp::PF_W) || (p_flag & elfcpp::PF_R))
+        tctmemtab_os->add_seg_str(p_idx, 5);
       //FIXME : differentiate between dmb vmb segment
     }
-  tctmemtab_seg->add_output_section_to_nonload(tctmemtab_sec, elfcpp::PF_R);
-  #endif
+  tctmemtab_seg->add_output_section_to_nonload(tctmemtab_os, elfcpp::PF_R);
 }
 
 // Perform a relocation.
@@ -826,28 +827,28 @@ Target_apex<size, big_endian>::Scan::global_reloc_may_be_function_pointer(
 template<>
 Target::Target_info Target_apex<32, true>::apex_info =
 {
-  32,			// size
-  true,			// is_big_endian
-  elfcpp::EM_NONE,	// machine_code
-  false,		// has_make_symbol
-  false,		// has_resolve
-  false,		// has_code_fill
-  true,			// is_default_stack_executable
-  false,		// can_icf_inline_merge_sections
-  '\0',			// wrap_char
-  "/usr/lib/ld.so.1",	// dynamic_linker
-  0x0,		        // default_text_segment_address
-  32 * 1024,		// abi_pagesize (overridable by -z max-page-size)
-  32 * 1024,		// common_pagesize (overridable by -z common-page-size)
-  false,		// isolate_execinstr
-  0,			// rosegment_gap
-  elfcpp::SHN_UNDEF,	// small_common_shndx
-  elfcpp::SHN_UNDEF,	// large_common_shndx
-  0,			// small_common_section_flags
-  0,			// large_common_section_flags
-  NULL,			// attributes_section
-  NULL,			// attributes_vendor
-  "_main_fsl"		// entry_symbol_name
+  32,                   // size
+  true,                 // is_big_endian
+  elfcpp::EM_NONE,      // machine_code
+  false,                // has_make_symbol
+  false,                // has_resolve
+  false,                // has_code_fill
+  true,                 // is_default_stack_executable
+  false,                // can_icf_inline_merge_sections
+  '\0',                 // wrap_char
+  "/usr/lib/ld.so.1",   // dynamic_linker
+  0x0,                  // default_text_segment_address
+  32 * 1024,            // abi_pagesize (overridable by -z max-page-size)
+  32 * 1024,            // common_pagesize (overridable by -z common-page-size)
+  false,                // isolate_execinstr
+  0,                    // rosegment_gap
+  elfcpp::SHN_UNDEF,    // small_common_shndx
+  elfcpp::SHN_UNDEF,    // large_common_shndx
+  0,                    // small_common_section_flags
+  0,                    // large_common_section_flags
+  NULL,                 // attributes_section
+  NULL,                 // attributes_vendor
+  "_main_fsl"           // entry_symbol_name
 };
 
 template<int size, bool big_endian>
@@ -856,9 +857,9 @@ class Target_selector_apex : public Target_selector
 public:
   Target_selector_apex()
     : Target_selector(elfcpp::EM_NONE /* until APEX has proper e_machine*/,
-		      size, big_endian,
-		      "elf32-big",
-		      "" /* emulation*/) {}
+                      size, big_endian,
+                      "elf32-big",
+                      "" /* emulation*/) {}
 
   virtual Target*
   do_instantiate_target()

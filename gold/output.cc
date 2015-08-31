@@ -539,7 +539,11 @@ Output_file_header::do_sized_write(Output_file* of)
   else
     oehdr.put_e_phoff(this->segment_header_->offset());
 
-  oehdr.put_e_shoff(this->section_header_->offset());
+  if (parameters->options().skip_shdrs())
+    oehdr.put_e_shoff(0);
+  else
+    oehdr.put_e_shoff(this->section_header_->offset());
+
   oehdr.put_e_flags(this->target_->processor_specific_flags());
   oehdr.put_e_ehsize(elfcpp::Elf_sizes<size>::ehdr_size);
 
@@ -562,7 +566,8 @@ Output_file_header::do_sized_write(Output_file* of)
   size_t section_count = (this->section_header_->data_size()
 			  / elfcpp::Elf_sizes<size>::shdr_size);
 
-  if (section_count < elfcpp::SHN_LORESERVE)
+  if (section_count < elfcpp::SHN_LORESERVE &&
+      !parameters->options().skip_shdrs())
     oehdr.put_e_shnum(this->section_header_->data_size()
 		      / elfcpp::Elf_sizes<size>::shdr_size);
   else
@@ -573,6 +578,9 @@ Output_file_header::do_sized_write(Output_file* of)
     oehdr.put_e_shstrndx(this->shstrtab_->out_shndx());
   else
     oehdr.put_e_shstrndx(elfcpp::SHN_XINDEX);
+
+  if (parameters->options().skip_shdrs())
+    oehdr.put_e_shstrndx(0);
 
   // Let the target adjust the ELF header, e.g., to set EI_OSABI in
   // the e_ident field.

@@ -1347,6 +1347,9 @@ class General_options
   DEFINE_bool_alias(textoff, text, options::DASH_Z, '\0',
 		    N_("Permit relocations in read-only segments (default)"),
 		    NULL, true);
+  DEFINE_bool(skip_shdrs, options::TWO_DASHES, '\0', false,
+	      N_("Do not generate section headers in executable"),
+	      N_("Generate section headers as usual"));
 
  public:
   typedef options::Dir_list Dir_list;
