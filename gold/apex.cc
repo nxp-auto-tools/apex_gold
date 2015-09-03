@@ -359,13 +359,17 @@ private:
   rela(unsigned char* view,
        const Sized_relobj_file<size, big_endian>* object,
        const Symbol_value<size>* psymval,
-       typename elfcpp::Swap<size, big_endian>::Valtype addend
+       typename elfcpp::Swap<size, big_endian>::Valtype addend,
+       elfcpp::Elf_Xword bitmask
        /*Overflow_check overflow*/)
   {
     typedef typename elfcpp::Swap<fieldsize, big_endian>::Valtype Valtype;
     Valtype* wv = reinterpret_cast<Valtype*>(view);
     Valtype val = elfcpp::Swap<fieldsize, big_endian>::readval(wv);
     Valtype reloc = psymval->value(object, addend);
+
+    val &= ~bitmask;
+    reloc &= bitmask;
 
     elfcpp::Swap<fieldsize, big_endian>::writeval(wv, val | (reloc));
     //return overflowed<valsize>(value, overflow);
@@ -399,6 +403,7 @@ private:
          const Symbol_value<size>* psymval,
          typename elfcpp::Swap<size, big_endian>::Valtype addend,
          typename elfcpp::Elf_types<size>::Elf_Addr address,
+         unsigned minus,
          elfcpp::Elf_Xword bitmask)
 
   {
@@ -406,7 +411,7 @@ private:
     Valtype* wv = reinterpret_cast<Valtype*>(view);
     Valtype val = elfcpp::Swap<valsize, big_endian>::readval(wv);
     // distance unit is words
-    Valtype reloc = (psymval->value(object, addend) - address - 4) / 4;
+    Valtype reloc = (psymval->value(object, addend) - address - minus*4) / 4;
 
     val &= ~bitmask;
     reloc &= bitmask;
@@ -421,7 +426,7 @@ public:
        const Sized_relobj_file<size, big_endian>* object,
        const Symbol_value<size>* psymval,
        typename elfcpp::Swap<size, big_endian>::Valtype addend)
-  { This::template rela<64,32>(view, object, psymval, addend); }
+  { This::template rela<64,32>(view, object, psymval, addend, 0xffffffff); }
 
    // R_APEX_237 : (Symbol + Addend) s32 data relocation in little endian
   static inline void
@@ -431,14 +436,23 @@ public:
        typename elfcpp::Swap<size, big_endian>::Valtype addend)
   { This::template abs32_swap<32>(view, object, psymval, addend); }
 
+   // R_APEX_201: (Symbol + Addend) u15
+  static inline void
+  addr15(unsigned char* view,
+       const Sized_relobj_file<size, big_endian>* object,
+       const Symbol_value<size>* psymval,
+       typename elfcpp::Swap<size, big_endian>::Valtype addend)
+  { This::template rela<32,15>(view, object, psymval, addend, 0x7fff); }
+
   // R_APEX_75: (Symbol + Addend)-PC-1
   static inline void
   pc_addr25(unsigned char* view,
        const Sized_relobj_file<size, big_endian>* object,
        const Symbol_value<size>* psymval,
        typename elfcpp::Swap<size, big_endian>::Valtype addend,
-       typename elfcpp::Elf_types<size>::Elf_Addr address)
-  { This::template pcrela<32>(view, object, psymval, addend, address, 0x1ffffffUL); }
+       typename elfcpp::Elf_types<size>::Elf_Addr address,
+       unsigned minus)
+  { This::template pcrela<32>(view, object, psymval, addend, address, minus, 0x1ffffffUL); }
 
 };
 
@@ -653,7 +667,7 @@ void
 Target_apex<size, big_endian>::do_finalize_sections(
     Layout* layout,
     const Input_objects*,
-    Symbol_table* symtab)
+    Symbol_table* /*symtab*/)
 {
   // create .memstrtab output section and segment
   Stringpool *memstrtab = new Stringpool();
@@ -700,7 +714,7 @@ Target_apex<size, big_endian>::do_finalize_sections(
           (p_flag & elfcpp::PF_X) && (p_flag & elfcpp::PF_R))
         tctmemtab_os->add_seg_str(p_idx, 1);
       else if ((p_type & elfcpp::PT_LOAD) && 
-               (p_flag & elfcpp::PF_W) || (p_flag & elfcpp::PF_R))
+               ((p_flag & elfcpp::PF_W) || (p_flag & elfcpp::PF_R)))
         tctmemtab_os->add_seg_str(p_idx, 5);
       //FIXME : differentiate between dmb vmb segment
     }
@@ -741,12 +755,16 @@ Target_apex<size, big_endian>::Relocate::relocate(
       break;
     case elfcpp::R_APEX_237:  /*(Symbol + Addend) s32 */
       ApexReloc::d_addr32(view, object, psymval, addend);
+      break;
+    case elfcpp::R_APEX_201: /*(Symbol + Addend) u15*/
+      ApexReloc::addr15(view, object, psymval, addend);
      break;
     case elfcpp::R_APEX_75:  /*(Symbol + Addend)-PC-1 */
-      ApexReloc::pc_addr25(view, object, psymval, addend, address);
+      ApexReloc::pc_addr25(view, object, psymval, addend, address, 1);
       break;
     case elfcpp::R_APEX_69:  /*(Symbol + Addend)-PC-2 */
-    case elfcpp::R_APEX_201: /*(Symbol + Addend) u15*/
+      ApexReloc::pc_addr25(view, object, psymval, addend, address, 2);
+      break;
     default:
       gold_error_at_location(relinfo, relnum, rela.get_r_offset(),
                              _("unsupported reloc %u"),
