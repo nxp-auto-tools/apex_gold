@@ -394,8 +394,7 @@ private:
   }
 
 
-  // Do a simple PC relative relocation with a Symbol_value with the
-  // addend in the relocation.
+  // pc-relative branch in word offset minus various delay slots
   template<int valsize>
   static inline void
   pcrela(unsigned char* view,
@@ -444,7 +443,7 @@ public:
        typename elfcpp::Swap<size, big_endian>::Valtype addend)
   { This::template rela<32,15>(view, object, psymval, addend, 0x7fff); }
 
-  // R_APEX_75: (Symbol + Addend)-PC-1
+  // pc-relative branch in word offset minus various delay slots
   static inline void
   pc_addr25(unsigned char* view,
        const Sized_relobj_file<size, big_endian>* object,
@@ -453,6 +452,15 @@ public:
        typename elfcpp::Elf_types<size>::Elf_Addr address,
        unsigned minus)
   { This::template pcrela<32>(view, object, psymval, addend, address, minus, 0x1ffffffUL); }
+
+  static inline void
+  pc_addr16(unsigned char* view,
+       const Sized_relobj_file<size, big_endian>* object,
+       const Symbol_value<size>* psymval,
+       typename elfcpp::Swap<size, big_endian>::Valtype addend,
+       typename elfcpp::Elf_types<size>::Elf_Addr address,
+       unsigned minus)
+  { This::template pcrela<32>(view, object, psymval, addend, address, minus, 0xffffUL); }
 
 };
 
@@ -763,7 +771,10 @@ Target_apex<size, big_endian>::Relocate::relocate(
       ApexReloc::pc_addr25(view, object, psymval, addend, address, 1);
       break;
     case elfcpp::R_APEX_69:  /*(Symbol + Addend)-PC-2 */
-      ApexReloc::pc_addr25(view, object, psymval, addend, address, 2);
+      ApexReloc::pc_addr16(view, object, psymval, addend, address, 2);
+      break;
+    case elfcpp::R_APEX_71:  /*(Symbol + Addend)-PC-3 */
+      ApexReloc::pc_addr16(view, object, psymval, addend, address, 3);
       break;
     default:
       gold_error_at_location(relinfo, relnum, rela.get_r_offset(),
