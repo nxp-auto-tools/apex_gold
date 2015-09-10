@@ -690,15 +690,15 @@ Target_apex<size, big_endian>::do_finalize_sections(
                                     elfcpp::SHT_STRTAB, elfcpp::SHF_ALLOC,
                                     memstrtab_data, ORDER_INVALID,
                                     false);
-  
+  memstrtab_os->set_is_unique_segment();
   Output_segment* memstrtab_seg = 
-    layout->make_output_segment(elfcpp::PT_LOPROC+0x123457, 0);
+    layout->make_output_segment(elfcpp::PT_LOPROC+0x123457, elfcpp::PF_R);
   memstrtab_seg->add_output_section_to_nonload(memstrtab_os, elfcpp::PF_R);
 
   
   // Create .tctmemtab section and  segment
   Output_segment* tctmemtab_seg = 
-    layout->make_output_segment(elfcpp::PT_LOPROC+0x123456, 0);
+    layout->make_output_segment(elfcpp::PT_LOPROC+0x123456, elfcpp::PF_R);
 
   Output_data_space* tctmemtab_data = new Output_data_space(4 /*align*/, "** TCTMEMTAB");
   Apex_output_section_tctmemtab<size, big_endian>* tctmemtab_os = 
@@ -707,11 +707,23 @@ Target_apex<size, big_endian>::do_finalize_sections(
                                        elfcpp::SHT_LOPROC+0x123456, elfcpp::SHF_ALLOC,
                                        tctmemtab_data, ORDER_INVALID,
                                        false));
+  tctmemtab_data->set_address(0);
   tctmemtab_os->set_entsize(8);
   // link to .memstrtab
   tctmemtab_os->set_link_section(memstrtab_os);
+  tctmemtab_os->set_is_unique_segment();
 
   unsigned p_idx = 0;
+  if (layout->script_options()->saw_sections_clause()) {
+    // when using link script, segment are not finalized under late in the relaxation pass,
+    // so pre populate tctmemtab according to the default section ordering here.
+    tctmemtab_os->add_seg_str(0, 1);
+    tctmemtab_os->add_seg_str(1, 5);
+    tctmemtab_os->add_seg_str(2, 5);
+    tctmemtab_os->add_seg_str(3, 5);
+    tctmemtab_os->add_seg_str(4, 5);
+  }
+  else
   for (Layout::Segment_list::const_iterator p = layout->segment_list().begin();
          p != layout->segment_list().end(); ++p,++p_idx)
     {
@@ -867,9 +879,9 @@ Target::Target_info Target_apex<32, true>::apex_info =
   '\0',                 // wrap_char
   "/usr/lib/ld.so.1",   // dynamic_linker
   0x0,                  // default_text_segment_address
-  32 * 1024,            // abi_pagesize (overridable by -z max-page-size)
-  32 * 1024,            // common_pagesize (overridable by -z common-page-size)
-  false,                // isolate_execinstr
+  16,                   // abi_pagesize (overridable by -z max-page-size)
+  16,                   // common_pagesize (overridable by -z common-page-size)
+  true,                 // isolate_execinstr
   0,                    // rosegment_gap
   elfcpp::SHN_UNDEF,    // small_common_shndx
   elfcpp::SHN_UNDEF,    // large_common_shndx
