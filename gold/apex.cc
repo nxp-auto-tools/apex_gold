@@ -35,6 +35,60 @@ template<int size, bool big_endian>
 class Apex_output_section_tctmemtab;
 
 template<int size, bool big_endian>
+class Apex_output_section_tcthostedio;
+
+template<int size, bool big_endian>
+class Apex_relobj : public Sized_relobj_file<size, big_endian>
+{
+public:
+  //typedef typename elfcpp::Elf_types<size>::Elf_Addr Address;
+  //typedef Unordered_set<Section_id, Section_id_hash> Section_refs;
+  //typedef Unordered_map<Address, Section_refs> Access_from;
+
+  Apex_relobj(const std::string& name, Input_file* input_file, off_t offset,
+                 const typename elfcpp::Ehdr<size, big_endian>& ehdr)
+    : Sized_relobj_file<size, big_endian>(name, input_file, offset, ehdr),
+      text_shndx_(-1)
+  {}
+
+  ~Apex_relobj()
+  {}
+
+  // Read the symbols then set up st_other vector.
+  void
+  do_read_symbols(Read_symbols_data*);
+
+  // return txt shndx
+  int get_txt_shndx() const {return text_shndx_;}
+
+private:
+  // text shndx
+  int text_shndx_;
+};
+
+template<int size, bool big_endian>
+void
+Apex_relobj<size, big_endian>::do_read_symbols(Read_symbols_data* sd)
+{
+  // Call parent class to read symbol information.
+  this->base_read_symbols(sd);
+
+  //save the executable shndx; used during debug relocations
+  const size_t shdr_size = elfcpp::Elf_sizes<size>::shdr_size;
+  const unsigned char* pshdrs = sd->section_headers->data();
+  const unsigned char* ps = pshdrs + shdr_size;
+  for (unsigned int i = 1; i < this->shnum(); ++i, ps += shdr_size)
+    {
+      elfcpp::Shdr<size, big_endian> shdr(ps);
+
+      if (shdr.get_sh_flags() & elfcpp::SHF_EXECINSTR) {
+        text_shndx_ = i;
+        break;
+      }
+    }
+}
+
+template<int size, bool big_endian>
 class Target_apex : public Sized_target<size, big_endian>
 {
 public:
@@ -129,7 +183,8 @@ public:
   do_should_include_section(elfcpp::Elf_Word sh_type) const
   // skip tctmemtab as we will create base on output segments.
   {
-    if (sh_type != elfcpp::SHT_LOPROC + 0x123456)
+    if (sh_type != elfcpp::SHT_LOPROC + 0x123456 &&
+        sh_type != elfcpp::SHT_LOPROC + 0x123460 )
       return true;
     return false;
   }
@@ -139,6 +194,12 @@ public:
   do_finalize_sections(Layout*, const Input_objects*, Symbol_table*);
 
 protected:
+  // Make an ELF object.
+  Object*
+  do_make_elf_object(const std::string&, Input_file*, off_t,
+                     const elfcpp::Ehdr<size, big_endian>& ehdr);
+
+
   // Make an output section.
   Output_section*
   do_make_output_section(const char* name, elfcpp::Elf_Word type,
@@ -147,8 +208,10 @@ protected:
       if (type == elfcpp::SHT_LOPROC + 0x123456 /*.tctmemtab*/)
         return new Apex_output_section_tctmemtab<size, big_endian>(name, type,
                                                                    flags, this);
-      else
-        return new Output_section(name, type, flags);
+      if (type == elfcpp::SHT_LOPROC + 0x123460 /*.tcthostedio*/)
+        return new Apex_output_section_tcthostedio<size, big_endian>(name, type,
+                                                                   flags, this);
+      return new Output_section(name, type, flags);
     }
 
 private:
@@ -295,6 +358,47 @@ class Apex_output_section_tctmemtab : public Output_section
 };
 
 template<int size, bool big_endian>
+class Apex_output_section_tcthostedio : public Output_section
+{
+  typedef typename elfcpp::Swap<size, big_endian>::Valtype Valtype;
+
+ public:
+  Apex_output_section_tcthostedio(const char* name, elfcpp::Elf_Word type,
+                                  elfcpp::Elf_Xword flags,
+                                  Target_apex<size, big_endian>* target)
+    : Output_section(name, type, flags), target_(target)
+  { 
+    this->set_requires_postprocessing();
+    this->set_is_noload();
+  }
+
+  static Apex_output_section_tcthostedio<size, big_endian>*
+  as_apex_output_section_tcthostedio(Output_section* os)
+  { return static_cast<Apex_output_section_tcthostedio<size, big_endian>*>(os); }
+
+  // Save layout and symbol table
+  void
+  set_pp_info(Layout *layout, Symbol_table* symtab)
+  { layout_=layout; symtab_=symtab; }
+
+ protected:
+  // Set the final data size.
+  void
+  set_final_data_size()
+  { this->set_data_size(8);}
+
+  // Write out tctmemtab section.
+  void
+  do_write(Output_file* of);
+
+ private:
+  Target_apex<size, big_endian>* target_;
+
+  Layout* layout_;
+  Symbol_table* symtab_;
+};
+
+template<int size, bool big_endian>
 class Apex_relocate_functions
 {
 public:
@@ -357,7 +461,7 @@ private:
   template<int fieldsize, int valsize>
   static inline void
   rela(unsigned char* view,
-       const Sized_relobj_file<size, big_endian>* object,
+       const Apex_relobj<size, big_endian>* object,
        const Symbol_value<size>* psymval,
        typename elfcpp::Swap<size, big_endian>::Valtype addend,
        elfcpp::Elf_Xword bitmask
@@ -378,7 +482,7 @@ private:
   template<int fieldsize>
   static inline void
   abs32_swap(unsigned char* view,
-       const Sized_relobj_file<size, big_endian>* object,
+       const Apex_relobj<size, big_endian>* object,
        const Symbol_value<size>* psymval,
        typename elfcpp::Swap<size, big_endian>::Valtype addend
        /*Overflow_check overflow*/)
@@ -396,15 +500,17 @@ private:
   template<int fieldsize>
   static inline void
   abs32(unsigned char* view,
-       const Sized_relobj_file<size, big_endian>* object,
+       const Apex_relobj<size, big_endian>* object,
        const Symbol_value<size>* psymval,
-       typename elfcpp::Swap<size, big_endian>::Valtype addend
+       typename elfcpp::Swap<size, big_endian>::Valtype addend,
+       bool is_txt_sym
        /*Overflow_check overflow*/)
   {
     typedef typename elfcpp::Swap<fieldsize, big_endian>::Valtype Valtype;
     Valtype* wv = reinterpret_cast<Valtype*>(view);
     Valtype val = elfcpp::Swap<fieldsize, big_endian>::readval(wv);
-    Valtype reloc = psymval->value(object, addend);
+    int unit = is_txt_sym ? (fieldsize/8) : 1;
+    Valtype reloc = psymval->value(object, addend) / unit;
 
     elfcpp::Swap<fieldsize, big_endian>::writeval(wv, val | (reloc));
   }
@@ -414,7 +520,7 @@ private:
   template<int valsize>
   static inline void
   pcrela(unsigned char* view,
-         const Sized_relobj_file<size, big_endian>* object,
+         const Apex_relobj<size, big_endian>* object,
          const Symbol_value<size>* psymval,
          typename elfcpp::Swap<size, big_endian>::Valtype addend,
          typename elfcpp::Elf_types<size>::Elf_Addr address,
@@ -438,29 +544,31 @@ public:
    // R_APEX_198: (Symbol + Addend) s64
   static inline void
   addr32(unsigned char* view,
-       const Sized_relobj_file<size, big_endian>* object,
+       const Apex_relobj<size, big_endian>* object,
        const Symbol_value<size>* psymval,
        typename elfcpp::Swap<size, big_endian>::Valtype addend)
   { This::template rela<64,32>(view, object, psymval, addend, 0xffffffff); }
 
-   // R_APEX_237 : (Symbol + Addend) s32 data relocation in little endian
+   // R_APEX_237 : (Symbol + Addend) s32 data relocation
   static inline void
   d_addr32(unsigned char* view,
-       const Sized_relobj_file<size, big_endian>* object,
+       const Apex_relobj<size, big_endian>* object,
        const Symbol_value<size>* psymval,
        typename elfcpp::Swap<size, big_endian>::Valtype addend,
        bool swap)
   { 
+    bool is_ordinary;
+    bool is_txt_sym = psymval->input_shndx(&is_ordinary) == (unsigned) object->get_txt_shndx();
     if (swap)
       This::template abs32_swap<32>(view, object, psymval, addend); 
     else
-      This::template abs32<32>(view, object, psymval, addend); 
+      This::template abs32<32>(view, object, psymval, addend, is_txt_sym); 
   }
 
    // R_APEX_201: (Symbol + Addend) u15
   static inline void
   addr15(unsigned char* view,
-       const Sized_relobj_file<size, big_endian>* object,
+       const Apex_relobj<size, big_endian>* object,
        const Symbol_value<size>* psymval,
        typename elfcpp::Swap<size, big_endian>::Valtype addend)
   { This::template rela<32,15>(view, object, psymval, addend, 0x7fff); }
@@ -468,7 +576,7 @@ public:
   // pc-relative branch in word offset minus various delay slots
   static inline void
   pc_addr25(unsigned char* view,
-       const Sized_relobj_file<size, big_endian>* object,
+       const Apex_relobj<size, big_endian>* object,
        const Symbol_value<size>* psymval,
        typename elfcpp::Swap<size, big_endian>::Valtype addend,
        typename elfcpp::Elf_types<size>::Elf_Addr address,
@@ -477,7 +585,7 @@ public:
 
   static inline void
   pc_addr16(unsigned char* view,
-       const Sized_relobj_file<size, big_endian>* object,
+       const Apex_relobj<size, big_endian>* object,
        const Symbol_value<size>* psymval,
        typename elfcpp::Swap<size, big_endian>::Valtype addend,
        typename elfcpp::Elf_types<size>::Elf_Addr address,
@@ -503,6 +611,30 @@ Apex_output_section_tctmemtab<size, big_endian>::do_write(Output_file* of)
     elfcpp::Swap<size, big_endian>::writeval(word + 4, this->seg_str_[i].second);
     word += 8;
   }
+
+  of->write_output_view(offset, data_size, view);
+}
+
+// Apex_output_section_tcthostedio do_write method
+template<int size, bool big_endian>
+void
+Apex_output_section_tcthostedio<size, big_endian>::do_write(Output_file* of)
+{
+  off_t offset = this->offset();
+  off_t data_size = this->data_size();
+
+  unsigned char* view = of->get_output_view(offset, data_size);
+
+  // get final relocated value for _hosted_clib_io and _st struct
+  Symbol* hosted_clib_sym = symtab_->lookup("_hosted_clib_io");
+  Valtype hosted_clib_val = hosted_clib_sym ? symtab_->get_sized_symbol<size>(hosted_clib_sym)->value() : 0;
+
+  Symbol* hosted_st_sym = symtab_->lookup("_st");
+  Valtype hosted_st_val = 0; //simulator don't read this field yet
+  //Valtype hosted_st_val = hosted_st_sym ? symtab_->get_sized_symbol<size>(hosted_st_sym)->value() : 0;
+
+  elfcpp::Swap<size, big_endian>::writeval(view, hosted_clib_val / 4 - 1 /*instr addr right before _hosted_clib_io*/);
+  elfcpp::Swap<size, big_endian>::writeval(view + 4, hosted_st_val);
 
   of->write_output_view(offset, data_size, view);
 }
@@ -690,6 +822,32 @@ Target_apex<size, big_endian>::relocate_relocs(
     reloc_view_size);
 }
 
+template<int size, bool big_endian>
+Object*
+Target_apex<size, big_endian>::do_make_elf_object(
+    const std::string& name,
+    Input_file* input_file,
+    off_t offset, const elfcpp::Ehdr<size, big_endian>& ehdr)
+{
+  int et = ehdr.get_e_type();
+  // ET_EXEC files are valid input for --just-symbols/-R,
+  // and we treat them as relocatable objects.
+  if (et == elfcpp::ET_REL
+      || (et == elfcpp::ET_EXEC && input_file->just_symbols()))
+    {
+      Apex_relobj<size, big_endian>* obj =
+        new Apex_relobj<size, big_endian>(name, input_file, offset, ehdr);
+      obj->setup();
+      return obj;
+    }
+  else
+    {
+      gold_error(_("%s: unsupported ELF file type %d"),
+                 name.c_str(), et);
+      return NULL;
+    }
+}
+
 // Finalize the sections.
 
 template<int size, bool big_endian>
@@ -697,8 +855,29 @@ void
 Target_apex<size, big_endian>::do_finalize_sections(
     Layout* layout,
     const Input_objects*,
-    Symbol_table* /*symtab*/)
+    Symbol_table* symtab)
 {
+  // Create .tcthostedio section and  segment
+  Output_segment* tcthostedio_seg = 
+    layout->make_output_segment(elfcpp::PT_LOPROC+0x123460, elfcpp::PF_R);
+
+  Output_data_space* tcthostedio_data = new Output_data_space(4 /*align*/, "** TCTHOSTEDIO");
+  Apex_output_section_tcthostedio<size, big_endian>* tcthostedio_os = 
+    Apex_output_section_tcthostedio<size, big_endian>::as_apex_output_section_tcthostedio(
+       layout->add_output_section_data(".tcthostedio",
+                                       elfcpp::SHT_LOPROC+0x123460, elfcpp::SHF_ALLOC,
+                                       tcthostedio_data, ORDER_INVALID,
+                                       false));
+  tcthostedio_data->set_address(0);
+  tcthostedio_os->set_entsize(8);
+  tcthostedio_os->set_is_unique_segment();
+  //tcthostedio_os->set_requires_postprocessing();
+  tcthostedio_os->set_after_input_sections();
+  tcthostedio_os->set_is_noload();
+  tcthostedio_os->set_pp_info(layout, symtab); //needed during postprocessing
+
+  tcthostedio_seg->add_output_section_to_nonload(tcthostedio_os, elfcpp::PF_R);
+
   // create .memstrtab output section and segment
   Stringpool *memstrtab = new Stringpool();
   memstrtab->add("PMh", false, NULL);
@@ -734,6 +913,7 @@ Target_apex<size, big_endian>::do_finalize_sections(
   // link to .memstrtab
   tctmemtab_os->set_link_section(memstrtab_os);
   tctmemtab_os->set_is_unique_segment();
+  tctmemtab_os->set_is_noload();
 
   unsigned p_idx = 0;
   if (layout->script_options()->saw_sections_clause()) {
@@ -761,6 +941,7 @@ Target_apex<size, big_endian>::do_finalize_sections(
       //FIXME : differentiate between dmb vmb segment
     }
   tctmemtab_seg->add_output_section_to_nonload(tctmemtab_os, elfcpp::PF_R);
+
 }
 
 // Perform a relocation.
@@ -773,7 +954,7 @@ Target_apex<size, big_endian>::Relocate::relocate(
     size_t relnum,
     const elfcpp::Rela<size, big_endian>& rela,
     unsigned int r_type,
-    const Sized_symbol<size>* /*gsym*/,
+    const Sized_symbol<size>* gsym,
     const Symbol_value<size>* psymval,
     unsigned char* view,
     typename elfcpp::Elf_types<size>::Elf_Addr address,
@@ -784,7 +965,8 @@ Target_apex<size, big_endian>::Relocate::relocate(
 
   typedef Apex_relocate_functions<size, big_endian> ApexReloc;
 
-  const Sized_relobj_file<size, big_endian>* object = relinfo->object;
+  Apex_relobj<size, big_endian>* object
+    = static_cast<Apex_relobj<size, big_endian>*>(relinfo->object);
   Address value = 0;
   elfcpp::Elf_Xword addend = rela.get_r_addend();
 
@@ -797,11 +979,12 @@ Target_apex<size, big_endian>::Relocate::relocate(
       break;
     case elfcpp::R_APEX_0:   /* synopsys use dwarf relocation type 0, but should relocate like R_APEX_237 */
     case elfcpp::R_APEX_237:  /*(Symbol + Addend) s32 */
-      if (strncmp(os->name(), ".debug", 6)==0)
-	// debug relocations, don't swap endian
-      	ApexReloc::d_addr32(view, object, psymval, addend, false);
+      if (strncmp(os->name(), ".debug", 6)==0) {
+        // debug relocations, don't swap endian
+        ApexReloc::d_addr32(view, object, psymval, addend, false);
+      }
       else
-	ApexReloc::d_addr32(view, object, psymval, addend, true);
+        ApexReloc::d_addr32(view, object, psymval, addend, true);
       break;
     case elfcpp::R_APEX_201: /*(Symbol + Addend) u15*/
       ApexReloc::addr15(view, object, psymval, addend);
