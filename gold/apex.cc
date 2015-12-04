@@ -630,10 +630,9 @@ Apex_output_section_tcthostedio<size, big_endian>::do_write(Output_file* of)
   Valtype hosted_clib_val = hosted_clib_sym ? symtab_->get_sized_symbol<size>(hosted_clib_sym)->value() : 0;
 
   Symbol* hosted_st_sym = symtab_->lookup("_st");
-  Valtype hosted_st_val = 0; //simulator don't read this field yet
-  //Valtype hosted_st_val = hosted_st_sym ? symtab_->get_sized_symbol<size>(hosted_st_sym)->value() : 0;
+  Valtype hosted_st_val = hosted_st_sym ? symtab_->get_sized_symbol<size>(hosted_st_sym)->value() : 0;
 
-  elfcpp::Swap<size, big_endian>::writeval(view, hosted_clib_val / 4 - 1 /*instr addr right before _hosted_clib_io*/);
+  elfcpp::Swap<size, big_endian>::writeval(view, hosted_clib_val / 4);
   elfcpp::Swap<size, big_endian>::writeval(view + 4, hosted_st_val);
 
   of->write_output_view(offset, data_size, view);
