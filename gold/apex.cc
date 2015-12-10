@@ -629,7 +629,7 @@ Apex_output_section_tcthostedio<size, big_endian>::do_write(Output_file* of)
   Symbol* hosted_clib_sym = symtab_->lookup("_hosted_clib_io");
   Valtype hosted_clib_val = hosted_clib_sym ? symtab_->get_sized_symbol<size>(hosted_clib_sym)->value() : 0;
 
-  Symbol* hosted_st_sym = symtab_->lookup("_st");
+  Symbol* hosted_st_sym = symtab_->lookup("_hosted_clib_vars");
   Valtype hosted_st_val = hosted_st_sym ? symtab_->get_sized_symbol<size>(hosted_st_sym)->value() : 0;
 
   elfcpp::Swap<size, big_endian>::writeval(view, hosted_clib_val / 4);
