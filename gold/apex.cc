@@ -484,14 +484,16 @@ private:
   abs32_swap(unsigned char* view,
        const Apex_relobj<size, big_endian>* object,
        const Symbol_value<size>* psymval,
-       typename elfcpp::Swap<size, big_endian>::Valtype addend
+       typename elfcpp::Swap<size, big_endian>::Valtype addend,
+       bool is_txt_sym
        /*Overflow_check overflow*/)
   {
     // reverse the template parameter big_endian as apex data is in little endian
     typedef typename elfcpp::Swap<fieldsize, !big_endian>::Valtype Valtype;
     Valtype* wv = reinterpret_cast<Valtype*>(view);
     Valtype val = elfcpp::Swap<fieldsize, !big_endian>::readval(wv);
-    Valtype reloc = psymval->value(object, addend);
+    int unit = is_txt_sym ? (fieldsize/8) : 1;
+    Valtype reloc = psymval->value(object, addend) / unit;
 
     elfcpp::Swap<fieldsize, !big_endian>::writeval(wv, val | (reloc));
     //return overflowed<valsize>(value, overflow);
@@ -560,7 +562,7 @@ public:
     bool is_ordinary;
     bool is_txt_sym = psymval->input_shndx(&is_ordinary) == (unsigned) object->get_txt_shndx();
     if (swap)
-      This::template abs32_swap<32>(view, object, psymval, addend); 
+      This::template abs32_swap<32>(view, object, psymval, addend, is_txt_sym); 
     else
       This::template abs32<32>(view, object, psymval, addend, is_txt_sym); 
   }
@@ -911,6 +913,7 @@ Target_apex<size, big_endian>::do_finalize_sections(
   tctmemtab_os->set_entsize(8);
   // link to .memstrtab
   tctmemtab_os->set_link_section(memstrtab_os);
+  tctmemtab_os->set_after_input_sections();
   tctmemtab_os->set_is_unique_segment();
   tctmemtab_os->set_is_noload();
 
@@ -918,11 +921,12 @@ Target_apex<size, big_endian>::do_finalize_sections(
   if (layout->script_options()->saw_sections_clause()) {
     // when using link script, segment are not finalized under late in the relaxation pass,
     // so pre populate tctmemtab according to the default section ordering here.
-    tctmemtab_os->add_seg_str(0, 1);
-    tctmemtab_os->add_seg_str(1, 5);
-    tctmemtab_os->add_seg_str(2, 5);
-    tctmemtab_os->add_seg_str(3, 5);
-    tctmemtab_os->add_seg_str(4, 5);
+    // This match the layout in default APU2.lcf
+    tctmemtab_os->add_seg_str(0, 9); // VMh
+    tctmemtab_os->add_seg_str(1, 1); // PMb
+    tctmemtab_os->add_seg_str(2, 5); // DMb
+    tctmemtab_os->add_seg_str(3, 5); // DMb
+    tctmemtab_os->add_seg_str(4, 5); // DMb
   }
   else
   for (Layout::Segment_list::const_iterator p = layout->segment_list().begin();
