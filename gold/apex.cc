@@ -48,7 +48,7 @@ public:
   Apex_relobj(const std::string& name, Input_file* input_file, off_t offset,
                  const typename elfcpp::Ehdr<size, big_endian>& ehdr)
     : Sized_relobj_file<size, big_endian>(name, input_file, offset, ehdr),
-      text_shndx_(-1)
+      text_shndx_(-1), vdata_shndx_(-1), vbss_shndx_(-1)
   {}
 
   ~Apex_relobj()
@@ -61,9 +61,20 @@ public:
   // return txt shndx
   int get_txt_shndx() const {return text_shndx_;}
 
+  // return txt shndx
+  int get_vdata_shndx() const {return vdata_shndx_;}
+
+  // return txt shndx
+  int get_vbss_shndx() const {return vbss_shndx_;}
+
 private:
   // text shndx
   int text_shndx_;
+
+  // data.VMb shndx;
+  int vdata_shndx_;
+  // bss.VMb shndx;
+  int vbss_shndx_;
 };
 
 template<int size, bool big_endian>
@@ -76,15 +87,20 @@ Apex_relobj<size, big_endian>::do_read_symbols(Read_symbols_data* sd)
   //save the executable shndx; used during debug relocations
   const size_t shdr_size = elfcpp::Elf_sizes<size>::shdr_size;
   const unsigned char* pshdrs = sd->section_headers->data();
+  const unsigned char* namesu = sd->section_names->data();
+  const char* names = reinterpret_cast<const char*>(namesu);
   const unsigned char* ps = pshdrs + shdr_size;
+
   for (unsigned int i = 1; i < this->shnum(); ++i, ps += shdr_size)
     {
       elfcpp::Shdr<size, big_endian> shdr(ps);
 
-      if (shdr.get_sh_flags() & elfcpp::SHF_EXECINSTR) {
+      if (shdr.get_sh_flags() & elfcpp::SHF_EXECINSTR)
         text_shndx_ = i;
-        break;
-      }
+      if (is_prefix_of(".data.VMb", names + shdr.get_sh_name()))
+        vdata_shndx_ = i;
+      if (is_prefix_of(".bss.VMb", names + shdr.get_sh_name()))
+        vbss_shndx_ = i;
     }
 }
 
@@ -464,13 +480,17 @@ private:
        const Apex_relobj<size, big_endian>* object,
        const Symbol_value<size>* psymval,
        typename elfcpp::Swap<size, big_endian>::Valtype addend,
-       elfcpp::Elf_Xword bitmask
+       elfcpp::Elf_Xword bitmask,
+       bool is_vdata_sym
        /*Overflow_check overflow*/)
   {
     typedef typename elfcpp::Swap<fieldsize, big_endian>::Valtype Valtype;
     Valtype* wv = reinterpret_cast<Valtype*>(view);
     Valtype val = elfcpp::Swap<fieldsize, big_endian>::readval(wv);
     Valtype reloc = psymval->value(object, addend);
+
+    // VMb width is 128bytes per synopsys
+    if (is_vdata_sym) reloc >>= 7;
 
     val &= ~bitmask;
     reloc &= bitmask;
@@ -547,9 +567,18 @@ public:
   static inline void
   addr32(unsigned char* view,
        const Apex_relobj<size, big_endian>* object,
+       const Sized_symbol<size>* gsym,
        const Symbol_value<size>* psymval,
        typename elfcpp::Swap<size, big_endian>::Valtype addend)
-  { This::template rela<64,32>(view, object, psymval, addend, 0xffffffff); }
+  { 
+    bool is_ordinary;
+    unsigned input_shndx = gsym ? gsym->shndx(&is_ordinary) :
+                                  psymval->input_shndx(&is_ordinary);
+    bool is_vdata_sym = (input_shndx == (unsigned) object->get_vdata_shndx()
+			 || input_shndx == (unsigned) object->get_vbss_shndx());
+    
+    This::template rela<64,32>(view, object, psymval, addend, 0xffffffff, is_vdata_sym); 
+  }
 
    // R_APEX_237 : (Symbol + Addend) s32 data relocation
   static inline void
@@ -573,7 +602,7 @@ public:
        const Apex_relobj<size, big_endian>* object,
        const Symbol_value<size>* psymval,
        typename elfcpp::Swap<size, big_endian>::Valtype addend)
-  { This::template rela<32,15>(view, object, psymval, addend, 0x7fff); }
+  { This::template rela<32,15>(view, object, psymval, addend, 0x7fff, false); }
 
   // pc-relative branch in word offset minus various delay slots
   static inline void
@@ -922,11 +951,11 @@ Target_apex<size, big_endian>::do_finalize_sections(
     // when using link script, segment are not finalized under late in the relaxation pass,
     // so pre populate tctmemtab according to the default section ordering here.
     // This match the layout in default APU2.lcf
-    tctmemtab_os->add_seg_str(0, 9); // VMh
-    tctmemtab_os->add_seg_str(1, 1); // PMb
+    tctmemtab_os->add_seg_str(0, 1); // VMb
+    tctmemtab_os->add_seg_str(1, 5); // PMb
     tctmemtab_os->add_seg_str(2, 5); // DMb
-    tctmemtab_os->add_seg_str(3, 5); // DMb
-    tctmemtab_os->add_seg_str(4, 5); // DMb
+    tctmemtab_os->add_seg_str(3, 9); // DMb
+    //tctmemtab_os->add_seg_str(4, 9); // DMb
   }
   else
   for (Layout::Segment_list::const_iterator p = layout->segment_list().begin();
@@ -978,7 +1007,7 @@ Target_apex<size, big_endian>::Relocate::relocate(
     case elfcpp::R_APEX_NONE:
       break;
     case elfcpp::R_APEX_198: /*(Symbol + Addend) s64 */
-      ApexReloc::addr32(view, object, psymval, addend);
+      ApexReloc::addr32(view, object, gsym, psymval, addend);
       break;
     case elfcpp::R_APEX_0:   /* synopsys use dwarf relocation type 0, but should relocate like R_APEX_237 */
     case elfcpp::R_APEX_237:  /*(Symbol + Addend) s32 */
