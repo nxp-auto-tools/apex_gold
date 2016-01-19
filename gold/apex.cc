@@ -588,10 +588,12 @@ public:
        typename elfcpp::Swap<size, big_endian>::Valtype addend)
   { 
     bool is_ordinary;
-    unsigned input_shndx = gsym ? gsym->shndx(&is_ordinary)
+    unsigned input_shndx = (gsym && (gsym->source()==Symbol::FROM_OBJECT))
+                                ? gsym->shndx(&is_ordinary)
                                 : psymval->input_shndx(&is_ordinary);
     const Apex_relobj<size, big_endian>* input_object = 
-      gsym ? static_cast<const Apex_relobj<size, big_endian>*>(gsym->object())
+      (gsym && (gsym->source()==Symbol::FROM_OBJECT)) 
+           ? static_cast<const Apex_relobj<size, big_endian>*>(gsym->object())
            : object;
     bool is_txt_sym = input_shndx == (unsigned) input_object->get_txt_shndx();
     bool is_vdata_sym = (input_shndx == (unsigned) input_object->get_vdata_shndx()
@@ -610,10 +612,12 @@ public:
        bool swap)
   { 
     bool is_ordinary;
-    unsigned input_shndx = gsym ? gsym->shndx(&is_ordinary) :
-                                  psymval->input_shndx(&is_ordinary);
+    unsigned input_shndx = (gsym && (gsym->source()==Symbol::FROM_OBJECT))
+                                ? gsym->shndx(&is_ordinary)
+                                : psymval->input_shndx(&is_ordinary);
     const Apex_relobj<size, big_endian>* input_object = 
-      gsym ? static_cast<const Apex_relobj<size, big_endian>*>(gsym->object())
+      (gsym && (gsym->source()==Symbol::FROM_OBJECT)) 
+           ? static_cast<const Apex_relobj<size, big_endian>*>(gsym->object())
            : object;
     bool is_txt_sym = input_shndx == (unsigned) input_object->get_txt_shndx();
     bool is_vdata_sym = (input_shndx == (unsigned) input_object->get_vdata_shndx()
