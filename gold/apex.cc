@@ -48,7 +48,7 @@ public:
   Apex_relobj(const std::string& name, Input_file* input_file, off_t offset,
                  const typename elfcpp::Ehdr<size, big_endian>& ehdr)
     : Sized_relobj_file<size, big_endian>(name, input_file, offset, ehdr),
-      text_shndx_(-1), vdata_shndx_(-1), vbss_shndx_(-1)
+      section_is_txt_(), section_is_vdata_()
   {}
 
   ~Apex_relobj()
@@ -58,23 +58,22 @@ public:
   void
   do_read_symbols(Read_symbols_data*);
 
-  // return txt shndx
-  int get_txt_shndx() const {return text_shndx_;}
+  bool is_txt_shndx(unsigned shndx) const
+  {
+    gold_assert(shndx < this->shnum());
+    return this->section_is_txt_[shndx];
+  }
 
-  // return txt shndx
-  int get_vdata_shndx() const {return vdata_shndx_;}
-
-  // return txt shndx
-  int get_vbss_shndx() const {return vbss_shndx_;}
+  bool is_vdata_shndx(unsigned shndx) const
+  {
+    gold_assert(shndx < this->shnum());
+    return this->section_is_vdata_[shndx];
+  }
 
 private:
-  // text shndx
-  int text_shndx_;
+  std::vector<bool> section_is_txt_;
+  std::vector<bool> section_is_vdata_;
 
-  // data.VMb shndx;
-  int vdata_shndx_;
-  // bss.VMb shndx;
-  int vbss_shndx_;
 };
 
 template<int size, bool big_endian>
@@ -84,23 +83,22 @@ Apex_relobj<size, big_endian>::do_read_symbols(Read_symbols_data* sd)
   // Call parent class to read symbol information.
   this->base_read_symbols(sd);
 
-  //save the executable shndx; used during debug relocations
   const size_t shdr_size = elfcpp::Elf_sizes<size>::shdr_size;
   const unsigned char* pshdrs = sd->section_headers->data();
   const unsigned char* namesu = sd->section_names->data();
   const char* names = reinterpret_cast<const char*>(namesu);
   const unsigned char* ps = pshdrs + shdr_size;
 
+  this->section_is_txt_.resize(this->shnum(),false);
+  this->section_is_vdata_.resize(this->shnum(),false);
+
   for (unsigned int i = 1; i < this->shnum(); ++i, ps += shdr_size)
     {
       elfcpp::Shdr<size, big_endian> shdr(ps);
 
-      if (shdr.get_sh_flags() & elfcpp::SHF_EXECINSTR)
-        text_shndx_ = i;
-      if (is_prefix_of(".data.VMb", names + shdr.get_sh_name()))
-        vdata_shndx_ = i;
-      if (is_prefix_of(".bss.VMb", names + shdr.get_sh_name()))
-        vbss_shndx_ = i;
+      this->section_is_txt_[i] = shdr.get_sh_flags() & elfcpp::SHF_EXECINSTR;
+      this->section_is_vdata_[i] = is_prefix_of(".data.VMb", names + shdr.get_sh_name())
+                                   || is_prefix_of(".bss.VMb", names + shdr.get_sh_name());
     }
 }
 
@@ -595,9 +593,8 @@ public:
       (gsym && (gsym->source()==Symbol::FROM_OBJECT)) 
            ? static_cast<const Apex_relobj<size, big_endian>*>(gsym->object())
            : object;
-    bool is_txt_sym = input_shndx == (unsigned) input_object->get_txt_shndx();
-    bool is_vdata_sym = (input_shndx == (unsigned) input_object->get_vdata_shndx()
-                         || input_shndx == (unsigned) input_object->get_vbss_shndx());
+    bool is_txt_sym = input_object->is_txt_shndx(input_shndx);
+    bool is_vdata_sym = input_object->is_vdata_shndx(input_shndx);
     
     This::template rela<64,32>(view, object, psymval, addend, 0xffffffff, is_txt_sym, is_vdata_sym); 
   }
@@ -619,9 +616,9 @@ public:
       (gsym && (gsym->source()==Symbol::FROM_OBJECT)) 
            ? static_cast<const Apex_relobj<size, big_endian>*>(gsym->object())
            : object;
-    bool is_txt_sym = input_shndx == (unsigned) input_object->get_txt_shndx();
-    bool is_vdata_sym = (input_shndx == (unsigned) input_object->get_vdata_shndx()
-                         || input_shndx == (unsigned) input_object->get_vbss_shndx());
+    bool is_txt_sym = input_object->is_txt_shndx(input_shndx);
+    bool is_vdata_sym = input_object->is_vdata_shndx(input_shndx);
+
     if (swap)
       This::template abs32_swap<32>(view, object, psymval, addend, is_txt_sym, is_vdata_sym); 
     else
