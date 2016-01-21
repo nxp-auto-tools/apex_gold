@@ -956,7 +956,7 @@ Target_apex<size, big_endian>::do_finalize_sections(
   memstrtab_seg->add_output_section_to_nonload(memstrtab_os, elfcpp::PF_R);
 
   
-  // Create .tctmemtab section and  segment
+  // Create .tctmemtab section and segment
   Output_segment* tctmemtab_seg = 
     layout->make_output_segment(elfcpp::PT_LOPROC+0x123456, elfcpp::PF_R);
 
@@ -980,11 +980,9 @@ Target_apex<size, big_endian>::do_finalize_sections(
     // when using link script, segment are not finalized under late in the relaxation pass,
     // so pre populate tctmemtab according to the default section ordering here.
     // This match the layout in default APU2.lcf
-    tctmemtab_os->add_seg_str(0, 1); // VMb
-    tctmemtab_os->add_seg_str(1, 5); // PMb
-    tctmemtab_os->add_seg_str(2, 5); // DMb
-    tctmemtab_os->add_seg_str(3, 9); // DMb
-    //tctmemtab_os->add_seg_str(4, 9); // DMb
+    tctmemtab_os->add_seg_str(0, 1); // PMh
+    tctmemtab_os->add_seg_str(1, 5); // DMb
+    tctmemtab_os->add_seg_str(2, 9); // VMb
   }
   else
   for (Layout::Segment_list::const_iterator p = layout->segment_list().begin();
