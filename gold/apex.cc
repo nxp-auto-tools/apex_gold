@@ -98,7 +98,8 @@ Apex_relobj<size, big_endian>::do_read_symbols(Read_symbols_data* sd)
 
       this->section_is_txt_[i] = shdr.get_sh_flags() & elfcpp::SHF_EXECINSTR;
       this->section_is_vdata_[i] = is_prefix_of(".data.VMb", names + shdr.get_sh_name())
-                                   || is_prefix_of(".bss.VMb", names + shdr.get_sh_name());
+                                   || is_prefix_of(".bss.VMb", names + shdr.get_sh_name())
+                                   || is_prefix_of(".rodata.VMb", names + shdr.get_sh_name());
     }
 }
 
@@ -338,7 +339,10 @@ class Apex_output_section_tctmemtab : public Output_section
                               elfcpp::Elf_Xword flags,
                               Target_apex<size, big_endian>* target)
     : Output_section(name, type, flags), target_(target)
-  { }
+  { 
+    this->set_requires_postprocessing();
+    this->set_is_noload();
+  }
 
   // Downcast a base pointer to a Apex_output_section_tctmemtab pointer.
   static Apex_output_section_tctmemtab<size, big_endian>*
@@ -353,11 +357,19 @@ class Apex_output_section_tctmemtab : public Output_section
     this->seg_str_.push_back(p);
   }
 
+  // Save layout
+  void
+  set_pp_info(Layout *layout)
+  { layout_=layout; }
+
  protected:
   // Set the final data size.
   void
   set_final_data_size()
-  { this->set_data_size(seg_str_.size() * sizeof(int) * 2); }
+  // FIXME this is related to tctmemtab being included twice
+  // and thus seg_str_ is empty when this is call. Pre-allocate the default
+  // before this is fixed.
+  { this->set_data_size(/*seg_str_.size()*/ 4 * sizeof(int) * 2); }
 
   // Write out tctmemtab section.
   void
@@ -368,6 +380,8 @@ class Apex_output_section_tctmemtab : public Output_section
 
   // list of {segment,strtab offset} pair
   std::vector<std::pair<unsigned int, unsigned int> > seg_str_;
+
+  Layout* layout_;
 
 };
 
@@ -655,7 +669,6 @@ public:
 };
 
 // Apex_output_section_tctmemtab do_write method
-
 template<int size, bool big_endian>
 void
 Apex_output_section_tctmemtab<size, big_endian>::do_write(Output_file* of)
@@ -665,6 +678,26 @@ Apex_output_section_tctmemtab<size, big_endian>::do_write(Output_file* of)
 
   unsigned char* view = of->get_output_view(offset, data_size);
   unsigned char* word = view;
+  unsigned p_idx = 0;
+
+  for (Layout::Segment_list::const_iterator p = layout_->segment_list().begin();
+       p != layout_->segment_list().end(); ++p,++p_idx) {
+    elfcpp::Elf_Word p_flag = (*p)->flags(); 
+    elfcpp::Elf_Word p_type = (*p)->type();
+    
+    if (!(p_type & elfcpp::PT_LOAD)) continue;
+
+    // use fixed str offset in memstrtab
+    if ((p_flag & elfcpp::PF_X) && (p_flag & elfcpp::PF_R))
+      this->add_seg_str(p_idx, 1);
+    else if ((p_flag & elfcpp::PF_W) || (p_flag & elfcpp::PF_R))
+    {
+      if ((*p)->has_any_vdata_sections())
+        this->add_seg_str(p_idx, 9);
+      else
+        this->add_seg_str(p_idx, 5);
+    }
+  }
 
   for (unsigned int i = 0; i < this->seg_str_.size(); ++i) {
     elfcpp::Swap<size, big_endian>::writeval(word, this->seg_str_[i].first);
@@ -930,11 +963,11 @@ Target_apex<size, big_endian>::do_finalize_sections(
   tcthostedio_data->set_address(0);
   tcthostedio_os->set_entsize(8);
   tcthostedio_os->set_is_unique_segment();
-  //tcthostedio_os->set_requires_postprocessing();
   tcthostedio_os->set_after_input_sections();
   tcthostedio_os->set_is_noload();
   tcthostedio_os->set_pp_info(layout, symtab); //needed during postprocessing
 
+  tcthostedio_seg->set_is_unique_segment();
   tcthostedio_seg->add_output_section_to_nonload(tcthostedio_os, elfcpp::PF_R);
 
   // create .memstrtab output section and segment
@@ -953,6 +986,7 @@ Target_apex<size, big_endian>::do_finalize_sections(
   memstrtab_os->set_is_unique_segment();
   Output_segment* memstrtab_seg = 
     layout->make_output_segment(elfcpp::PT_LOPROC+0x123457, elfcpp::PF_R);
+  memstrtab_seg->set_is_unique_segment();
   memstrtab_seg->add_output_section_to_nonload(memstrtab_os, elfcpp::PF_R);
 
   
@@ -974,31 +1008,9 @@ Target_apex<size, big_endian>::do_finalize_sections(
   tctmemtab_os->set_after_input_sections();
   tctmemtab_os->set_is_unique_segment();
   tctmemtab_os->set_is_noload();
+  tctmemtab_os->set_pp_info(layout);
 
-  unsigned p_idx = 0;
-  if (layout->script_options()->saw_sections_clause()) {
-    // when using link script, segment are not finalized under late in the relaxation pass,
-    // so pre populate tctmemtab according to the default section ordering here.
-    // This match the layout in default APU2.lcf
-    tctmemtab_os->add_seg_str(0, 1); // PMh
-    tctmemtab_os->add_seg_str(1, 5); // DMb
-    tctmemtab_os->add_seg_str(2, 9); // VMb
-  }
-  else
-  for (Layout::Segment_list::const_iterator p = layout->segment_list().begin();
-         p != layout->segment_list().end(); ++p,++p_idx)
-    {
-      elfcpp::Elf_Word p_flag = (*p)->flags(); 
-      elfcpp::Elf_Word p_type = (*p)->type();
-      // use fixed str offset in memstrtab
-      if ((p_type & elfcpp::PT_LOAD) && 
-          (p_flag & elfcpp::PF_X) && (p_flag & elfcpp::PF_R))
-        tctmemtab_os->add_seg_str(p_idx, 1);
-      else if ((p_type & elfcpp::PT_LOAD) && 
-               ((p_flag & elfcpp::PF_W) || (p_flag & elfcpp::PF_R)))
-        tctmemtab_os->add_seg_str(p_idx, 5);
-      //FIXME : differentiate between dmb vmb segment
-    }
+  tctmemtab_seg->set_is_unique_segment();
   tctmemtab_seg->add_output_section_to_nonload(tctmemtab_os, elfcpp::PF_R);
 
 }

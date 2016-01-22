@@ -4280,6 +4280,25 @@ Output_segment::has_any_data_sections() const
   return false;
 }
 
+// For Apex, return true if this segment has any vector .vdata output section
+
+bool
+Output_segment::has_any_vdata_sections() const
+{
+  for (int i = 0; i < static_cast<int>(ORDER_MAX); ++i)
+    {
+      const Output_data_list* pdl = &this->output_lists_[i];
+      for (Output_data_list::const_iterator p = pdl->begin();
+           p != pdl->end();
+           ++p)
+        {
+          if (strcmp((*p)->output_section()->name(), ".vdata") == 0)
+            return true;
+        }
+    }
+  return false;
+}
+
 // Return whether the first data section (not counting TLS sections)
 // is a relro section.
 

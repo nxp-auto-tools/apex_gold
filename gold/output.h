@@ -4736,6 +4736,10 @@ class Output_segment
   bool
   has_any_data_sections() const;
 
+  // Return true if this segment has .vdata vector section
+  bool
+  has_any_vdata_sections() const;
+
   // Whether this segment has a dynamic relocs.
   bool
   has_dynamic_reloc() const;
