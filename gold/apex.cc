@@ -595,44 +595,20 @@ public:
   static inline void
   addr32(unsigned char* view,
        const Apex_relobj<size, big_endian>* object,
-       const Sized_symbol<size>* gsym,
        const Symbol_value<size>* psymval,
-       typename elfcpp::Swap<size, big_endian>::Valtype addend)
-  { 
-    bool is_ordinary;
-    unsigned input_shndx = (gsym && (gsym->source()==Symbol::FROM_OBJECT))
-                                ? gsym->shndx(&is_ordinary)
-                                : psymval->input_shndx(&is_ordinary);
-    const Apex_relobj<size, big_endian>* input_object = 
-      (gsym && (gsym->source()==Symbol::FROM_OBJECT)) 
-           ? static_cast<const Apex_relobj<size, big_endian>*>(gsym->object())
-           : object;
-    bool is_txt_sym = input_object->is_txt_shndx(input_shndx);
-    bool is_vdata_sym = input_object->is_vdata_shndx(input_shndx);
-    
-    This::template rela<64,32>(view, object, psymval, addend, 0xffffffff, is_txt_sym, is_vdata_sym); 
-  }
+       typename elfcpp::Swap<size, big_endian>::Valtype addend,
+       bool is_txt_sym, bool is_vdata_sym)
+  { This::template rela<64,32>(view, object, psymval, addend, 0xffffffff, is_txt_sym, is_vdata_sym); }
 
    // R_APEX_237 : (Symbol + Addend) s32 data relocation
   static inline void
   d_addr32(unsigned char* view,
        const Apex_relobj<size, big_endian>* object,
-       const Sized_symbol<size>* gsym,
        const Symbol_value<size>* psymval,
        typename elfcpp::Swap<size, big_endian>::Valtype addend,
-       bool swap)
+       bool swap,
+       bool is_txt_sym, bool is_vdata_sym)
   { 
-    bool is_ordinary;
-    unsigned input_shndx = (gsym && (gsym->source()==Symbol::FROM_OBJECT))
-                                ? gsym->shndx(&is_ordinary)
-                                : psymval->input_shndx(&is_ordinary);
-    const Apex_relobj<size, big_endian>* input_object = 
-      (gsym && (gsym->source()==Symbol::FROM_OBJECT)) 
-           ? static_cast<const Apex_relobj<size, big_endian>*>(gsym->object())
-           : object;
-    bool is_txt_sym = input_object->is_txt_shndx(input_shndx);
-    bool is_vdata_sym = input_object->is_vdata_shndx(input_shndx);
-
     if (swap)
       This::template abs32_swap<32>(view, object, psymval, addend, is_txt_sym, is_vdata_sym); 
     else
@@ -644,8 +620,9 @@ public:
   addr15(unsigned char* view,
        const Apex_relobj<size, big_endian>* object,
        const Symbol_value<size>* psymval,
-       typename elfcpp::Swap<size, big_endian>::Valtype addend)
-  { This::template rela<32,15>(view, object, psymval, addend, 0x7fff, false, false); }
+       typename elfcpp::Swap<size, big_endian>::Valtype addend,
+       bool is_txt_sym, bool is_vdata_sym)
+  { This::template rela<32,15>(view, object, psymval, addend, 0x7fff, is_txt_sym, is_vdata_sym); }
 
   // pc-relative branch in word offset minus various delay slots
   static inline void
@@ -1041,24 +1018,35 @@ Target_apex<size, big_endian>::Relocate::relocate(
   Address value = 0;
   elfcpp::Elf_Xword addend = rela.get_r_addend();
 
+  bool is_ordinary;
+  unsigned input_shndx = (gsym && (gsym->source()==Symbol::FROM_OBJECT))
+                          ? gsym->shndx(&is_ordinary)
+                          : psymval->input_shndx(&is_ordinary);
+  const Apex_relobj<size, big_endian>* input_object = 
+      (gsym && (gsym->source()==Symbol::FROM_OBJECT)) 
+       ? static_cast<const Apex_relobj<size, big_endian>*>(gsym->object())
+       : object;
+  bool is_txt_sym = input_object->is_txt_shndx(input_shndx);
+  bool is_vdata_sym = input_object->is_vdata_shndx(input_shndx);
+
   switch (r_type)
     {
     case elfcpp::R_APEX_NONE:
       break;
     case elfcpp::R_APEX_198: /*(Symbol + Addend) s64 */
-      ApexReloc::addr32(view, object, gsym, psymval, addend);
+      ApexReloc::addr32(view, object, psymval, addend, is_txt_sym, is_vdata_sym);
       break;
     case elfcpp::R_APEX_0:   /* synopsys use dwarf relocation type 0, but should relocate like R_APEX_237 */
     case elfcpp::R_APEX_237:  /*(Symbol + Addend) s32 */
       if (strncmp(os->name(), ".debug", 6)==0) {
         // debug relocations, don't swap endian
-        ApexReloc::d_addr32(view, object, gsym, psymval, addend, false);
+        ApexReloc::d_addr32(view, object, psymval, addend, false, is_txt_sym, is_vdata_sym);
       }
       else
-        ApexReloc::d_addr32(view, object, gsym, psymval, addend, true);
+        ApexReloc::d_addr32(view, object, psymval, addend, true, is_txt_sym, is_vdata_sym);
       break;
     case elfcpp::R_APEX_201: /*(Symbol + Addend) u15*/
-      ApexReloc::addr15(view, object, psymval, addend);
+      ApexReloc::addr15(view, object, psymval, addend, is_txt_sym, is_vdata_sym);
      break;
     case elfcpp::R_APEX_75:  /*(Symbol + Addend)-PC-1 */
       ApexReloc::pc_addr25(view, object, psymval, addend, address, 1);
