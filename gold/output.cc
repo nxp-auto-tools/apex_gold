@@ -581,7 +581,10 @@ Output_file_header::do_sized_write(Output_file* of)
   e_ident[elfcpp::EI_DATA] = (big_endian
 			      ? elfcpp::ELFDATA2MSB
 			      : elfcpp::ELFDATA2LSB);
-  e_ident[elfcpp::EI_VERSION] = elfcpp::EV_CURRENT;
+  if (parameters->options().skip_shdrs())
+    e_ident[elfcpp::EI_VERSION] = elfcpp::EV_APEX;
+  else
+    e_ident[elfcpp::EI_VERSION] = elfcpp::EV_CURRENT;
   oehdr.put_e_ident(e_ident);
 
   elfcpp::ET e_type;
@@ -594,7 +597,10 @@ Output_file_header::do_sized_write(Output_file* of)
   oehdr.put_e_type(e_type);
 
   oehdr.put_e_machine(this->target_->machine_code());
-  oehdr.put_e_version(elfcpp::EV_CURRENT);
+  if (parameters->options().skip_shdrs())
+    oehdr.put_e_version(elfcpp::EV_APEX);
+  else
+    oehdr.put_e_version(elfcpp::EV_CURRENT);
 
   oehdr.put_e_entry(this->entry<size>());
 
