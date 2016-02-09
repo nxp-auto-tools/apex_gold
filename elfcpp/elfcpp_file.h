@@ -337,7 +337,7 @@ Elf_recognizer::is_valid_header(
     }
 
   int v = ehdr_buf[elfcpp::EI_VERSION];
-  if (v != elfcpp::EV_CURRENT)
+  if (v != elfcpp::EV_CURRENT && v != elfcpp::EV_APEX)
     {
       if (v == elfcpp::EV_NONE)
         *error = _("invalid ELF version 0");

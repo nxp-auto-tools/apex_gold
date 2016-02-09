@@ -262,6 +262,64 @@ Output_section_headers::do_write(Output_file* of)
     }
 }
 
+unsigned int
+Output_section_headers::get_apex_sh_count() const
+{
+  unsigned apex_sh_count = 1;
+
+  for (Layout::Section_list::const_iterator p =
+	 this->unattached_section_list_->begin();
+       p != this->unattached_section_list_->end();
+       ++p)
+    {
+      // Apex elf parser only recognize these debug sections...
+      if (strcmp((*p)->name(),".debug_info")==0 || 
+	  strcmp((*p)->name(),".debug_abbrev")==0 || 
+	  strcmp((*p)->name(),".debug_line")==0 || 
+	  strcmp((*p)->name(),".debug_loc")==0 || 
+	  strcmp((*p)->name(),".shstrtab")==0)
+	{
+	  ++apex_sh_count;
+	}
+    }
+  return apex_sh_count;
+}
+
+template<int size, bool big_endian>
+void
+Output_section_headers::do_sized_write_apex(Output_file* of, unsigned char* view, unsigned char* v)
+{
+  unsigned int write_sh_count = 1;
+  const int shdr_size = elfcpp::Elf_sizes<size>::shdr_size;
+
+  for (Layout::Section_list::const_iterator p =
+	 this->unattached_section_list_->begin();
+       p != this->unattached_section_list_->end();
+       ++p)
+    {
+      elfcpp::Shdr_write<size, big_endian> oshdr(v);
+
+      // Apex elf parser only recognize these debug sections...
+      if (strcmp((*p)->name(),".debug_info")==0 || 
+	  strcmp((*p)->name(),".debug_abbrev")==0 || 
+	  strcmp((*p)->name(),".debug_line")==0 || 
+	  strcmp((*p)->name(),".debug_loc")==0 || 
+	  strcmp((*p)->name(),".shstrtab")==0)
+	{
+	  (*p)->write_header(this->layout_, this->secnamepool_, &oshdr);
+	  v += shdr_size;
+	  ++write_sh_count;
+	}
+    }
+
+  off_t all_shdrs_size = write_sh_count * shdr_size;
+  reset_data_size();
+  set_data_size(all_shdrs_size);
+  fix_data_size();
+  of->write_output_view(this->offset(), all_shdrs_size, view);
+
+}
+
 template<int size, bool big_endian>
 void
 Output_section_headers::do_sized_write(Output_file* of)
@@ -302,6 +360,12 @@ Output_section_headers::do_sized_write(Output_file* of)
 
   v += shdr_size;
 
+  if (parameters->options().skip_shdrs()) {
+    // For apex, only write debug section headers and shstrtab
+    do_sized_write_apex<size, big_endian>(of, view, v);
+    return;
+  }
+    
   unsigned int shndx = 1;
   if (!parameters->options().relocatable())
     {
@@ -566,21 +630,23 @@ Output_file_header::do_sized_write(Output_file* of)
   size_t section_count = (this->section_header_->data_size()
 			  / elfcpp::Elf_sizes<size>::shdr_size);
 
-  if (section_count < elfcpp::SHN_LORESERVE &&
-      !parameters->options().skip_shdrs())
-    oehdr.put_e_shnum(this->section_header_->data_size()
-		      / elfcpp::Elf_sizes<size>::shdr_size);
+  if (parameters->options().skip_shdrs())
+    section_count = this->section_header_->get_apex_sh_count();
+  
+  if (section_count < elfcpp::SHN_LORESERVE)
+    oehdr.put_e_shnum(section_count);
   else
     oehdr.put_e_shnum(0);
 
   unsigned int shstrndx = this->shstrtab_->out_shndx();
-  if (shstrndx < elfcpp::SHN_LORESERVE)
-    oehdr.put_e_shstrndx(this->shstrtab_->out_shndx());
-  else
-    oehdr.put_e_shstrndx(elfcpp::SHN_XINDEX);
 
   if (parameters->options().skip_shdrs())
-    oehdr.put_e_shstrndx(0);
+    shstrndx = section_count - 1;
+
+  if (shstrndx < elfcpp::SHN_LORESERVE)
+    oehdr.put_e_shstrndx(shstrndx);
+  else
+    oehdr.put_e_shstrndx(elfcpp::SHN_XINDEX);
 
   // Let the target adjust the ELF header, e.g., to set EI_OSABI in
   // the e_ident field.

@@ -609,6 +609,9 @@ class Output_section_headers : public Output_data
 			 const Stringpool*,
 			 const Output_section*);
 
+  unsigned int
+  get_apex_sh_count() const;
+
  protected:
   // Write the data to the file.
   void
@@ -639,6 +642,11 @@ class Output_section_headers : public Output_data
   template<int size, bool big_endian>
   void
   do_sized_write(Output_file*);
+
+  // Special writer for Apex which only writes debug section headers and shstrtab
+  template<int size, bool big_endian>
+  void
+  do_sized_write_apex(Output_file* of, unsigned char* view, unsigned char* v);
 
   // Compute data size.
   off_t

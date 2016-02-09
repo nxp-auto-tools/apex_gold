@@ -393,6 +393,22 @@ private:
     //return overflowed<valsize>(value, overflow);
   }
 
+  template<int fieldsize>
+  static inline void
+  abs32(unsigned char* view,
+       const Sized_relobj_file<size, big_endian>* object,
+       const Symbol_value<size>* psymval,
+       typename elfcpp::Swap<size, big_endian>::Valtype addend
+       /*Overflow_check overflow*/)
+  {
+    typedef typename elfcpp::Swap<fieldsize, big_endian>::Valtype Valtype;
+    Valtype* wv = reinterpret_cast<Valtype*>(view);
+    Valtype val = elfcpp::Swap<fieldsize, big_endian>::readval(wv);
+    Valtype reloc = psymval->value(object, addend);
+
+    elfcpp::Swap<fieldsize, big_endian>::writeval(wv, val | (reloc));
+  }
+
 
   // pc-relative branch in word offset minus various delay slots
   template<int valsize>
@@ -432,8 +448,14 @@ public:
   d_addr32(unsigned char* view,
        const Sized_relobj_file<size, big_endian>* object,
        const Symbol_value<size>* psymval,
-       typename elfcpp::Swap<size, big_endian>::Valtype addend)
-  { This::template abs32_swap<32>(view, object, psymval, addend); }
+       typename elfcpp::Swap<size, big_endian>::Valtype addend,
+       bool swap)
+  { 
+    if (swap)
+      This::template abs32_swap<32>(view, object, psymval, addend); 
+    else
+      This::template abs32<32>(view, object, psymval, addend); 
+  }
 
    // R_APEX_201: (Symbol + Addend) u15
   static inline void
@@ -747,7 +769,7 @@ inline bool
 Target_apex<size, big_endian>::Relocate::relocate(
     const Relocate_info<size, big_endian>* relinfo,
     Target_apex<size, big_endian>* /*target*/,
-    Output_section*,
+    Output_section* os,
     size_t relnum,
     const elfcpp::Rela<size, big_endian>& rela,
     unsigned int r_type,
@@ -773,8 +795,13 @@ Target_apex<size, big_endian>::Relocate::relocate(
     case elfcpp::R_APEX_198: /*(Symbol + Addend) s64 */
       ApexReloc::addr32(view, object, psymval, addend);
       break;
+    case elfcpp::R_APEX_0:   /* synopsys use dwarf relocation type 0, but should relocate like R_APEX_237 */
     case elfcpp::R_APEX_237:  /*(Symbol + Addend) s32 */
-      ApexReloc::d_addr32(view, object, psymval, addend);
+      if (strncmp(os->name(), ".debug", 6)==0)
+	// debug relocations, don't swap endian
+      	ApexReloc::d_addr32(view, object, psymval, addend, false);
+      else
+	ApexReloc::d_addr32(view, object, psymval, addend, true);
       break;
     case elfcpp::R_APEX_201: /*(Symbol + Addend) u15*/
       ApexReloc::addr15(view, object, psymval, addend);

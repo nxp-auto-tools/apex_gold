@@ -171,7 +171,7 @@ visibility_error(const Symbol* sym)
 // undefined symbol.  This is called if there is a relocation against
 // SYM.
 
-inline bool
+static bool
 issue_undefined_symbol_error(const Symbol* sym)
 {
   // We only report global symbols.

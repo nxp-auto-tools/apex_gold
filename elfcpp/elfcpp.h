@@ -119,7 +119,8 @@ enum
 enum
 {
   EV_NONE = 0,
-  EV_CURRENT = 1
+  EV_CURRENT = 1,
+  EV_APEX = 7
 };
 
 // The valid values found in Ehdr e_ident[EI_OSABI].

@@ -2810,6 +2810,8 @@ class Sized_relobj_file : public Sized_relobj<size, big_endian>
   // Type of ELF file (ET_REL or ET_EXEC).  ET_EXEC files are allowed
   // as input files only for the --just-symbols option.
   int e_type_;
+  // ELF header EI_VERSION
+  int e_version_;
   // Index of SHT_SYMTAB section.
   unsigned int symtab_shndx_;
   // The number of local symbols.
@@ -2847,6 +2849,8 @@ class Sized_relobj_file : public Sized_relobj<size, big_endian>
   std::vector<Deferred_layout> deferred_layout_relocs_;
   // Pointer to the list of output views; valid only during do_relocate().
   const Views* output_views_;
+  // Debug symbol count
+  unsigned int debug_sym_count;
 };
 
 // A class to manage the list of all objects.

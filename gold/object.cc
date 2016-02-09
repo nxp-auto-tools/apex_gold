@@ -483,6 +483,7 @@ Sized_relobj_file<size, big_endian>::Sized_relobj_file(
     output_views_(NULL)
 {
   this->e_type_ = ehdr.get_e_type();
+  this->e_version_ = ehdr.get_e_version();
 }
 
 template<int size, bool big_endian>
@@ -821,6 +822,25 @@ Sized_relobj_file<size, big_endian>::do_find_special_sections(
 			    13) == 0)));
 }
 
+static unsigned int
+count_debug_sym(Read_symbols_data* sd)
+{
+  unsigned int count = 0;
+  // count the debug section names in shstrtab
+  const unsigned char* sect_names = sd->section_names->data();
+
+  // synopsys only generates these debug sections
+  if (memmem(sect_names, sd->section_names_size, "debug_info", 10))
+    count++;
+  if (memmem(sect_names, sd->section_names_size, "debug_line", 10))
+    count++;
+  if (memmem(sect_names, sd->section_names_size, "debug_loc", 9))
+    count++;
+  if (memmem(sect_names, sd->section_names_size, "debug_abbrev", 12))
+    count++;
+  return count;
+}
+
 // Read the sections and symbols from an object file.
 
 template<int size, bool big_endian>
@@ -861,6 +881,17 @@ Sized_relobj_file<size, big_endian>::base_read_symbols(Read_symbols_data* sd)
   typename This::Shdr symtabshdr(pshdrs
 				 + this->symtab_shndx_ * This::shdr_size);
   gold_assert(symtabshdr.get_sh_type() == elfcpp::SHT_SYMTAB);
+
+  
+  debug_sym_count = 0;
+  if (e_version_ == elfcpp::EV_APEX) {
+    // We are looking at an Synopsys generated object for APEX
+    // It is non-standard in that there are local debug section symbol at the end
+    // of the symtab after all the global symbols. 
+    // So need we to account for them and adjust locsize, and extsize
+    // accordingly below.
+    debug_sym_count = count_debug_sym(sd);
+  }
 
   // If this object has a .eh_frame section, or if building a .gdb_index
   // section and there is debug info, we need all the symbols.
