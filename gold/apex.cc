@@ -320,7 +320,7 @@ private:
   };
 
   // general Target structure.
-  static Target::Target_info apex_info;
+  static const Target::Target_info apex_info;
 
   // Relocs saved to avoid a COPY reloc.
   Copy_relocs<elfcpp::SHT_RELA, size, big_endian> copy_relocs_;
@@ -1135,7 +1135,7 @@ Target_apex<size, big_endian>::Scan::global_reloc_may_be_function_pointer(
 }
 
 template<>
-Target::Target_info Target_apex<32, true>::apex_info =
+const Target::Target_info Target_apex<32, true>::apex_info =
 {
   32,                   // size
   true,                 // is_big_endian
@@ -1158,7 +1158,8 @@ Target::Target_info Target_apex<32, true>::apex_info =
   0,                    // large_common_section_flags
   NULL,                 // attributes_section
   NULL,                 // attributes_vendor
-  "_main_fsl"           // entry_symbol_name
+  "__main_fsl",         // entry_symbol_name
+  32,                   // hash_entry_size
 };
 
 template<int size, bool big_endian>
