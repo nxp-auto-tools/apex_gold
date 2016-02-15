@@ -674,6 +674,8 @@ Apex_output_section_tctmemtab<size, big_endian>::do_write(Output_file* of)
       else
         this->add_seg_str(p_idx, 5);
     }
+    else /* anything else including empty as data */
+      this->add_seg_str(p_idx, 5);      
   }
 
   for (unsigned int i = 0; i < this->seg_str_.size(); ++i) {

@@ -609,11 +609,7 @@ Output_file_header::do_sized_write(Output_file* of)
   else
     oehdr.put_e_phoff(this->segment_header_->offset());
 
-  if (parameters->options().skip_shdrs())
-    oehdr.put_e_shoff(0);
-  else
-    oehdr.put_e_shoff(this->section_header_->offset());
-
+  oehdr.put_e_shoff(this->section_header_->offset());
   oehdr.put_e_flags(this->target_->processor_specific_flags());
   oehdr.put_e_ehsize(elfcpp::Elf_sizes<size>::ehdr_size);
 
