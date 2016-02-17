@@ -97,9 +97,7 @@ Apex_relobj<size, big_endian>::do_read_symbols(Read_symbols_data* sd)
       elfcpp::Shdr<size, big_endian> shdr(ps);
 
       this->section_is_txt_[i] = shdr.get_sh_flags() & elfcpp::SHF_EXECINSTR;
-      this->section_is_vdata_[i] = is_prefix_of(".data.VMb", names + shdr.get_sh_name())
-                                   || is_prefix_of(".bss.VMb", names + shdr.get_sh_name())
-                                   || is_prefix_of(".rodata.VMb", names + shdr.get_sh_name());
+      this->section_is_vdata_[i] = strstr(names + shdr.get_sh_name(), ".VMb") != 0;
     }
 }
 
@@ -939,8 +937,8 @@ Target_apex<size, big_endian>::do_finalize_sections(
                                        elfcpp::SHT_LOPROC+0x123460, elfcpp::SHF_ALLOC,
                                        tcthostedio_data, ORDER_INVALID,
                                        false));
-  tcthostedio_data->set_address(0);
   tcthostedio_os->set_entsize(8);
+  tcthostedio_os->set_addralign(16);
   tcthostedio_os->set_is_unique_segment();
   tcthostedio_os->set_after_input_sections();
   tcthostedio_os->set_is_noload();
@@ -963,6 +961,7 @@ Target_apex<size, big_endian>::do_finalize_sections(
                                     memstrtab_data, ORDER_INVALID,
                                     false);
   memstrtab_os->set_is_unique_segment();
+  memstrtab_os->set_addralign(16);
   Output_segment* memstrtab_seg = 
     layout->make_output_segment(elfcpp::PT_LOPROC+0x123457, elfcpp::PF_R);
   memstrtab_seg->set_is_unique_segment();
@@ -980,8 +979,8 @@ Target_apex<size, big_endian>::do_finalize_sections(
                                        elfcpp::SHT_LOPROC+0x123456, elfcpp::SHF_ALLOC,
                                        tctmemtab_data, ORDER_INVALID,
                                        false));
-  tctmemtab_data->set_address(0);
   tctmemtab_os->set_entsize(8);
+  tctmemtab_os->set_addralign(16);
   // link to .memstrtab
   tctmemtab_os->set_link_section(memstrtab_os);
   tctmemtab_os->set_after_input_sections();
