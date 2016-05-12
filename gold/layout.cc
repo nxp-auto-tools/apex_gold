@@ -3463,7 +3463,10 @@ Layout::set_segment_offsets(const Target* target, Output_segment* load_seg,
   if (this->script_options_->saw_sections_clause())
     increase_relro = 0;
 
-  const bool check_sections = parameters->options().check_sections();
+  // don't check overlap for APEX unless explicit
+  const bool isApex = parameters->target().machine_code() == elfcpp::EM_NONE &&
+                      !parameters->options().user_set_check_sections();
+  const bool check_sections = isApex ? false : parameters->options().check_sections();
   Output_segment* last_load_segment = NULL;
 
   unsigned int shndx_begin = *pshndx;

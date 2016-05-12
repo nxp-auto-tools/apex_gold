@@ -927,9 +927,6 @@ Target_apex<size, big_endian>::do_finalize_sections(
     Symbol_table* symtab)
 {
   // Create .tcthostedio section and  segment
-  Output_segment* tcthostedio_seg = 
-    layout->make_output_segment(elfcpp::PT_LOPROC+0x123460, elfcpp::PF_R);
-
   Output_data_space* tcthostedio_data = new Output_data_space(4 /*align*/, "** TCTHOSTEDIO");
   Apex_output_section_tcthostedio<size, big_endian>* tcthostedio_os = 
     Apex_output_section_tcthostedio<size, big_endian>::as_apex_output_section_tcthostedio(
@@ -937,15 +934,19 @@ Target_apex<size, big_endian>::do_finalize_sections(
                                        elfcpp::SHT_LOPROC+0x123460, elfcpp::SHF_ALLOC,
                                        tcthostedio_data, ORDER_INVALID,
                                        false));
-  tcthostedio_os->set_entsize(8);
-  tcthostedio_os->set_addralign(16);
-  tcthostedio_os->set_is_unique_segment();
-  tcthostedio_os->set_after_input_sections();
-  tcthostedio_os->set_is_noload();
-  tcthostedio_os->set_pp_info(layout, symtab); //needed during postprocessing
+  if (tcthostedio_os) {
+    tcthostedio_os->set_entsize(8);
+    tcthostedio_os->set_addralign(16);
+    tcthostedio_os->set_is_unique_segment();
+    tcthostedio_os->set_after_input_sections();
+    tcthostedio_os->set_is_noload();
+    tcthostedio_os->set_pp_info(layout, symtab); //needed during postprocessing
 
-  tcthostedio_seg->set_is_unique_segment();
-  tcthostedio_seg->add_output_section_to_nonload(tcthostedio_os, elfcpp::PF_R);
+    Output_segment* tcthostedio_seg =
+      layout->make_output_segment(elfcpp::PT_LOPROC+0x123460, elfcpp::PF_R);
+    tcthostedio_seg->set_is_unique_segment();
+    tcthostedio_seg->add_output_section_to_nonload(tcthostedio_os, elfcpp::PF_R);
+  }
 
   // create .memstrtab output section and segment
   Stringpool *memstrtab = new Stringpool();
@@ -960,18 +961,17 @@ Target_apex<size, big_endian>::do_finalize_sections(
                                     elfcpp::SHT_STRTAB, elfcpp::SHF_ALLOC,
                                     memstrtab_data, ORDER_INVALID,
                                     false);
-  memstrtab_os->set_is_unique_segment();
-  memstrtab_os->set_addralign(16);
-  Output_segment* memstrtab_seg = 
-    layout->make_output_segment(elfcpp::PT_LOPROC+0x123457, elfcpp::PF_R);
-  memstrtab_seg->set_is_unique_segment();
-  memstrtab_seg->add_output_section_to_nonload(memstrtab_os, elfcpp::PF_R);
+  if (memstrtab_os) {
+    memstrtab_os->set_is_unique_segment();
+    memstrtab_os->set_addralign(16);
 
+    Output_segment* memstrtab_seg =
+      layout->make_output_segment(elfcpp::PT_LOPROC+0x123457, elfcpp::PF_R);
+    memstrtab_seg->set_is_unique_segment();
+    memstrtab_seg->add_output_section_to_nonload(memstrtab_os, elfcpp::PF_R);
+  }
   
   // Create .tctmemtab section and segment
-  Output_segment* tctmemtab_seg = 
-    layout->make_output_segment(elfcpp::PT_LOPROC+0x123456, elfcpp::PF_R);
-
   Output_data_space* tctmemtab_data = new Output_data_space(4 /*align*/, "** TCTMEMTAB");
   Apex_output_section_tctmemtab<size, big_endian>* tctmemtab_os = 
     Apex_output_section_tctmemtab<size, big_endian>::as_apex_output_section_tctmemtab(
@@ -979,18 +979,21 @@ Target_apex<size, big_endian>::do_finalize_sections(
                                        elfcpp::SHT_LOPROC+0x123456, elfcpp::SHF_ALLOC,
                                        tctmemtab_data, ORDER_INVALID,
                                        false));
-  tctmemtab_os->set_entsize(8);
-  tctmemtab_os->set_addralign(16);
-  // link to .memstrtab
-  tctmemtab_os->set_link_section(memstrtab_os);
-  tctmemtab_os->set_after_input_sections();
-  tctmemtab_os->set_is_unique_segment();
-  tctmemtab_os->set_is_noload();
-  tctmemtab_os->set_pp_info(layout);
+  if (tctmemtab_os) {
+    tctmemtab_os->set_entsize(8);
+    tctmemtab_os->set_addralign(16);
+    // link to .memstrtab
+    tctmemtab_os->set_link_section(memstrtab_os);
+    tctmemtab_os->set_after_input_sections();
+    tctmemtab_os->set_is_unique_segment();
+    tctmemtab_os->set_is_noload();
+    tctmemtab_os->set_pp_info(layout);
 
-  tctmemtab_seg->set_is_unique_segment();
-  tctmemtab_seg->add_output_section_to_nonload(tctmemtab_os, elfcpp::PF_R);
-
+    Output_segment* tctmemtab_seg =
+      layout->make_output_segment(elfcpp::PT_LOPROC+0x123456, elfcpp::PF_R);
+    tctmemtab_seg->set_is_unique_segment();
+    tctmemtab_seg->add_output_section_to_nonload(tctmemtab_os, elfcpp::PF_R);
+  }
 }
 
 // Perform a relocation.
