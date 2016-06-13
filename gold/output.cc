@@ -4294,7 +4294,7 @@ Output_segment::has_any_vdata_sections() const
            p != pdl->end();
            ++p)
         {
-          if (strcmp((*p)->output_section()->name(), ".vdata") == 0)
+          if (strstr((*p)->output_section()->name(), ".vdata"))
             return true;
         }
     }
