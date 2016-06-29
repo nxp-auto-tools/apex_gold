@@ -364,10 +364,17 @@ class Apex_output_section_tctmemtab : public Output_section
   // Set the final data size.
   void
   set_final_data_size()
-  // FIXME this is related to tctmemtab being included twice
-  // and thus seg_str_ is empty when this is call. Pre-allocate the default
-  // before this is fixed.
-  { this->set_data_size(/*seg_str_.size()*/ 4 * sizeof(int) * 2); }
+  { 
+    int num_tseg = 0;
+    for (Layout::Segment_list::const_iterator p = layout_->segment_list().begin();
+         p != layout_->segment_list().end(); ++p) {
+      elfcpp::Elf_Word p_type = (*p)->type();
+      if (!(p_type & elfcpp::PT_LOAD) ||
+            p_type > elfcpp::PT_LOPROC) 
+        num_tseg++;
+    }
+    this->set_data_size((layout_->segment_list().size() - num_tseg) * sizeof(int) * 2);
+  }
 
   // Write out tctmemtab section.
   void
@@ -661,6 +668,8 @@ Apex_output_section_tctmemtab<size, big_endian>::do_write(Output_file* of)
     elfcpp::Elf_Word p_type = (*p)->type();
     
     if (!(p_type & elfcpp::PT_LOAD)) continue;
+    if (p_type == elfcpp::PT_LOPROC+0x123456) continue;
+    if (p_type == elfcpp::PT_LOPROC+0x123457) continue;
 
     // use fixed str offset in memstrtab
     if ((p_flag & elfcpp::PF_X) && (p_flag & elfcpp::PF_R))
@@ -681,7 +690,6 @@ Apex_output_section_tctmemtab<size, big_endian>::do_write(Output_file* of)
     elfcpp::Swap<size, big_endian>::writeval(word + 4, this->seg_str_[i].second);
     word += 8;
   }
-
   of->write_output_view(offset, data_size, view);
 }
 
