@@ -448,6 +448,15 @@ public:
     STATUS_OVERFLOW
   };
 
+  // differentiate between output section type
+  // for correct endianess
+  enum Sect_type
+  {
+    NON_DEBUG,
+    DEBUG,
+    DEBUG_RANGE
+  };
+
 private:
   typedef Apex_relocate_functions<size, big_endian> This;
   typedef typename elfcpp::Elf_types<size>::Elf_Addr Address;
@@ -552,7 +561,7 @@ private:
        const Apex_relobj<size, big_endian>* object,
        const Symbol_value<size>* psymval,
        typename elfcpp::Swap<size, big_endian>::Valtype addend,
-       bool is_txt_sym, bool is_vdata_sym
+       bool is_txt_sym, bool is_vdata_sym, bool is_debug_range
        /*Overflow_check overflow*/)
   {
     typedef typename elfcpp::Swap<fieldsize, big_endian>::Valtype Valtype;
@@ -566,6 +575,13 @@ private:
     else if (is_vdata_sym)
       // vector is 128byte wide, addend is already shifted
       reloc = ((reloc - addend) >> 7) + addend;
+
+    if (is_debug_range && (reloc == 0)) {
+      // a debug range reloc for a dead func
+      // LTB expects a value of 1 rather than 0
+      // which terminates the range list
+      reloc = 1;
+    }
 
     elfcpp::Swap<fieldsize, big_endian>::writeval(wv, val | (reloc));
   }
@@ -611,13 +627,24 @@ public:
        const Apex_relobj<size, big_endian>* object,
        const Symbol_value<size>* psymval,
        typename elfcpp::Swap<size, big_endian>::Valtype addend,
-       bool swap,
+       Output_section* os,
        bool is_txt_sym, bool is_vdata_sym)
   { 
-    if (swap)
+    Sect_type osec_type;
+    if (strncmp(os->name(), ".debug", 6) == 0) {
+      if (strcmp(os->name(), ".debug_ranges") == 0)
+        osec_type = DEBUG_RANGE;
+      else
+        osec_type = DEBUG;
+    }
+    else {
+      osec_type = NON_DEBUG;
+    }
+
+    if (osec_type == NON_DEBUG)
       This::template abs32_swap<32>(view, object, psymval, addend, is_txt_sym, is_vdata_sym); 
     else
-      This::template abs32<32>(view, object, psymval, addend, is_txt_sym, is_vdata_sym); 
+      This::template abs32<32>(view, object, psymval, addend, is_txt_sym, is_vdata_sym,(osec_type == DEBUG_RANGE)); 
   }
 
    // R_APEX_201: (Symbol + Addend) u15
@@ -1050,12 +1077,7 @@ Target_apex<size, big_endian>::Relocate::relocate(
       break;
     case elfcpp::R_APEX_0:   /* synopsys use dwarf relocation type 0, but should relocate like R_APEX_237 */
     case elfcpp::R_APEX_237:  /*(Symbol + Addend) s32 */
-      if (strncmp(os->name(), ".debug", 6)==0) {
-        // debug relocations, don't swap endian
-        ApexReloc::d_addr32(view, object, psymval, addend, false, is_txt_sym, is_vdata_sym);
-      }
-      else
-        ApexReloc::d_addr32(view, object, psymval, addend, true, is_txt_sym, is_vdata_sym);
+      ApexReloc::d_addr32(view, object, psymval, addend, os, is_txt_sym, is_vdata_sym);
       break;
     case elfcpp::R_APEX_201: /*(Symbol + Addend) u15*/
       ApexReloc::addr15(view, object, psymval, addend, is_txt_sym, is_vdata_sym);
