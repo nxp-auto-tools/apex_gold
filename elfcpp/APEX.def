@@ -1,0 +1,67 @@
+
+#ifndef R_APEX
+#ifndef ELF_RELOC
+#error "ELF_RELOC must be defined"
+#endif
+ELF_RELOC(R_APEX_NONE,               -1)
+#define R_APEX(I, N, S, D, PCR, E, M) ELF_RELOC(N, I)
+#define R_APEX_SKIPED
+#endif
+
+// Id, Name, size & sign, dest size, pc_rel, expr, mask
+//    Id                - Numeric value of relocation
+//    Name              - Name used for relocation, currently in the
+//                        form R_APEX_ ## Id
+//    size & sign       - The size and sign of the fixup, e.g. s15, u64
+//    destination size  - The bits of the target size
+//    pc_rel            - PC_REL is the relocation is relative to the PC; 0 in
+//                        other cases
+//    expr              - The apply fixup expression
+//    mask              - The bit mask of the relocation
+
+R_APEX(0, R_APEX_0, s16, 32, PC_REL, ((sym_add)-PC), 0xffffUL)
+R_APEX(1, R_APEX_1, s16, 64, PC_REL, ((sym_add)-PC), 0xffff00000000UL)
+R_APEX(2, R_APEX_2, s25, 32, PC_REL, ((sym_add)-PC), 0x1ffffffUL)
+R_APEX(3, R_APEX_3, s25, 64, PC_REL, ((sym_add)-PC), 0x1ffffff00000000UL)
+R_APEX(4, R_APEX_4, u16, 32, PC_REL, ((sym_add)-PC), 0xffffUL)
+R_APEX(5, R_APEX_5, u16, 64, PC_REL, ((sym_add)-PC), 0xffff00000000UL)
+R_APEX(6, R_APEX_6, u13, 32, PC_REL, ((sym_add)-PC), 0x1fffUL)
+R_APEX(7, R_APEX_7, u13, 64, PC_REL, ((sym_add)-PC), 0x1fff00000000UL)
+R_APEX(8, R_APEX_8, s16, 32, 0, ((sym_add)&0xFFFF), 0x7fff8UL)
+R_APEX(9, R_APEX_9, s16, 64, 0, ((sym_add)&0xFFFF), 0x7fff8UL)
+R_APEX(10, R_APEX_10, s16, 64, 0, ((sym_add)&0xFFFF), 0x180003fffUL)
+R_APEX(11, R_APEX_11, s32, 64, 0, ((sym_add)&0xFFFF), 0xffffffffUL)
+R_APEX(12, R_APEX_12, u16, 32, 0, ((sym_add)&0xFFFF), 0xffffUL)
+R_APEX(13, R_APEX_13, u16, 64, 0, ((sym_add)&0xFFFF), 0xffff00000000UL)
+R_APEX(14, R_APEX_14, s16, 32, 0, ((sym_add)&0xFFFF), 0xffffUL)
+R_APEX(15, R_APEX_15, s16, 64, 0, ((sym_add)&0xFFFF), 0xffff00000000UL)
+R_APEX(16, R_APEX_16, s16, 64, 0, ((sym_add)&0xFFFF), 0xf80001ffc000UL)
+R_APEX(17, R_APEX_17, s16, 32, 0, ((sym_add)>>16), 0x7fff8UL)
+R_APEX(18, R_APEX_18, s16, 64, 0, ((sym_add)>>16), 0x7fff8UL)
+R_APEX(19, R_APEX_19, s16, 64, 0, ((sym_add)>>16), 0x180003fffUL)
+R_APEX(20, R_APEX_20, s32, 64, 0, ((sym_add)>>16), 0xffffffffUL)
+R_APEX(21, R_APEX_21, u16, 32, 0, ((sym_add)>>16), 0xffffUL)
+R_APEX(22, R_APEX_22, u16, 64, 0, ((sym_add)>>16), 0xffff00000000UL)
+R_APEX(23, R_APEX_23, s16, 32, 0, ((sym_add)>>16), 0xffffUL)
+R_APEX(24, R_APEX_24, s16, 64, 0, ((sym_add)>>16), 0xffff00000000UL)
+R_APEX(25, R_APEX_25, s16, 64, 0, ((sym_add)>>16), 0xf80001ffc000UL)
+R_APEX(26, R_APEX_26, s15, 32, 0, (sym_add), 0x7fffUL)
+R_APEX(27, R_APEX_27, s15, 64, 0, (sym_add), 0x7fff00000000UL)
+R_APEX(28, R_APEX_28, s15, 64, 0, (sym_add), 0x1fffc000UL)
+R_APEX(29, R_APEX_29, s16, 32, 0, (sym_add), 0x7fff8UL)
+R_APEX(30, R_APEX_30, s16, 64, 0, (sym_add), 0x7fff8UL)
+R_APEX(31, R_APEX_31, s16, 64, 0, (sym_add), 0x180003fffUL)
+R_APEX(32, R_APEX_32, s32, 64, 0, (sym_add), 0xffffffffUL)
+R_APEX(33, R_APEX_33, u16, 32, 0, (sym_add), 0xffffUL)
+R_APEX(34, R_APEX_34, u16, 64, 0, (sym_add), 0xffff00000000UL)
+R_APEX(35, R_APEX_35, u15, 32, 0, (sym_add), 0x7fffUL)
+R_APEX(36, R_APEX_36, u15, 64, 0, (sym_add), 0x7fff00000000UL)
+R_APEX(37, R_APEX_37, s16, 32, 0, (sym_add), 0xffffUL)
+R_APEX(38, R_APEX_38, s16, 64, 0, (sym_add), 0xffff00000000UL)
+R_APEX(39, R_APEX_39, s16, 64, 0, (sym_add), 0xf80001ffc000UL)
+R_APEX(40, R_APEX_40, s13, 32, 0, (sym_add), 0xffc07UL)
+R_APEX(41, R_APEX_41, s13, 64, 0, (sym_add), 0xffc07UL)
+R_APEX(42, R_APEX_42, s32, 32, 0, (sym_add), 0xffffffffUL)
+
+#undef R_APEX
+#undef R_APEX_SKIPED

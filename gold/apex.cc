@@ -612,7 +612,7 @@ private:
   }
 
 public:
-   // R_APEX_198: (Symbol + Addend) s64
+   // R_APEX_32: (Symbol + Addend) s64
   static inline void
   addr32(unsigned char* view,
        const Apex_relobj<size, big_endian>* object,
@@ -621,7 +621,7 @@ public:
        bool is_txt_sym, bool is_vdata_sym)
   { This::template rela<64,32>(view, object, psymval, addend, 0xffffffff, is_txt_sym, is_vdata_sym); }
 
-   // R_APEX_237 : (Symbol + Addend) s32 data relocation
+   // R_APEX_42 : (Symbol + Addend) s32 data relocation
   static inline void
   d_addr32(unsigned char* view,
        const Apex_relobj<size, big_endian>* object,
@@ -647,7 +647,7 @@ public:
       This::template abs32<32>(view, object, psymval, addend, is_txt_sym, is_vdata_sym,(osec_type == DEBUG_RANGE)); 
   }
 
-   // R_APEX_201: (Symbol + Addend) u15
+   // R_APEX_35: (Symbol + Addend) u15
   static inline void
   addr15(unsigned char* view,
        const Apex_relobj<size, big_endian>* object,
@@ -1072,24 +1072,23 @@ Target_apex<size, big_endian>::Relocate::relocate(
     {
     case elfcpp::R_APEX_NONE:
       break;
-    case elfcpp::R_APEX_198: /*(Symbol + Addend) s64 */
+    case elfcpp::R_APEX_32: /*(Symbol + Addend) s64 */
       ApexReloc::addr32(view, object, psymval, addend, is_txt_sym, is_vdata_sym);
       break;
-    case elfcpp::R_APEX_0:   /* synopsys use dwarf relocation type 0, but should relocate like R_APEX_237 */
-    case elfcpp::R_APEX_237:  /*(Symbol + Addend) s32 */
+    case elfcpp::R_APEX_42: /*(Symbol + Addend) s32 */
       ApexReloc::d_addr32(view, object, psymval, addend, os, is_txt_sym, is_vdata_sym);
       break;
-    case elfcpp::R_APEX_201: /*(Symbol + Addend) u15*/
+    case elfcpp::R_APEX_35: /*(Symbol + Addend) u15*/
       ApexReloc::addr15(view, object, psymval, addend, is_txt_sym, is_vdata_sym);
      break;
-    case elfcpp::R_APEX_75:  /*(Symbol + Addend)-PC-1 */
-      ApexReloc::pc_addr25(view, object, psymval, addend, address, 1);
+    case elfcpp::R_APEX_2:  /*(Symbol + Addend)-PC */
+      ApexReloc::pc_addr25(view, object, psymval, addend, address, 0);
       break;
-    case elfcpp::R_APEX_69:  /*(Symbol + Addend)-PC-2 */
-      ApexReloc::pc_addr16(view, object, psymval, addend, address, 2);
+    case elfcpp::R_APEX_0:  /*(Symbol + Addend)-PC */
+      ApexReloc::pc_addr16(view, object, psymval, addend, address, 0);
       break;
-    case elfcpp::R_APEX_71:  /*(Symbol + Addend)-PC-3 */
-      ApexReloc::pc_addr16(view, object, psymval, addend, address, 3);
+    case elfcpp::R_APEX_4:  /*(Symbol + Addend)-PC */
+      ApexReloc::pc_addr16(view, object, psymval, addend, address, 0);
       break;
     default:
       gold_error_at_location(relinfo, relnum, rela.get_r_offset(),
